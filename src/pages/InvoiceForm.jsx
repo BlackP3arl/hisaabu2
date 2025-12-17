@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import ItemSelector from '../components/ItemSelector'
+import ClientSelector from '../components/ClientSelector'
 
 export default function InvoiceForm() {
   const { id } = useParams()
@@ -11,6 +12,7 @@ export default function InvoiceForm() {
   const invoice = id ? invoices.find(i => i.id === parseInt(id)) : null
 
   const [showItemSelector, setShowItemSelector] = useState(false)
+  const [showClientSelector, setShowClientSelector] = useState(false)
   const [formData, setFormData] = useState({
     clientId: invoice?.clientId || '',
     date: invoice?.date || new Date().toISOString().split('T')[0],
@@ -66,6 +68,21 @@ export default function InvoiceForm() {
 
   const handleRemoveItem = (index) => {
     setFormData({ ...formData, items: formData.items.filter((_, i) => i !== index) })
+  }
+
+  const handleSelectClient = (client) => {
+    setFormData({ ...formData, clientId: client.id })
+  }
+
+  const getAvatarColor = (name) => {
+    const colors = [
+      'from-blue-400 to-indigo-600',
+      'from-emerald-400 to-teal-600',
+      'from-purple-400 to-pink-600',
+      'from-amber-400 to-orange-600',
+    ]
+    const index = name?.charCodeAt(0) % colors.length || 0
+    return colors[index]
   }
 
   const handleSave = () => {
@@ -179,18 +196,27 @@ export default function InvoiceForm() {
                 {/* Client Selection */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                   <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white mb-3 lg:mb-4">Client Details</h3>
-                  <div className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 p-3 rounded-lg -mx-3 transition-colors">
+                  <button 
+                    onClick={() => setShowClientSelector(true)}
+                    className="w-full flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 p-3 rounded-lg -mx-3 transition-colors text-left"
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="size-10 lg:size-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
-                        {client?.name?.charAt(0) || 'A'}
+                      <div className={`size-10 lg:size-12 rounded-full bg-gradient-to-br ${client ? getAvatarColor(client.name) : 'from-slate-300 to-slate-400'} flex items-center justify-center text-white font-bold text-lg`}>
+                        {client?.name?.charAt(0) || <span className="material-symbols-outlined">person_add</span>}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{client?.name || 'Select Client'}</span>
                         <span className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">{client?.email || 'Click to select a client'}</span>
+                        {client?.phone && (
+                          <span className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">phone</span>
+                            {client.phone}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <span className="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">chevron_right</span>
-                  </div>
+                  </button>
                 </div>
 
                 {/* Line Items */}
@@ -450,6 +476,15 @@ export default function InvoiceForm() {
         <ItemSelector
           onSelect={handleAddItem}
           onClose={() => setShowItemSelector(false)}
+        />
+      )}
+
+      {/* Client Selector Modal */}
+      {showClientSelector && (
+        <ClientSelector
+          onSelect={handleSelectClient}
+          onClose={() => setShowClientSelector(false)}
+          selectedClientId={formData.clientId}
         />
       )}
     </div>
