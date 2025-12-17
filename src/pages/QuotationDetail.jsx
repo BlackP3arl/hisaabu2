@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
+import PrintPreview from '../components/PrintPreview'
 
 export default function QuotationDetail() {
   const { id } = useParams()
-  const { quotations, company } = useData()
+  const { quotations, clients, company } = useData()
   const quotation = quotations.find(q => q.id === parseInt(id))
+  const client = clients.find(c => c.id === quotation?.clientId)
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
 
   if (!quotation) return <div className="flex items-center justify-center min-h-screen">Quotation not found</div>
 
@@ -45,9 +49,12 @@ export default function QuotationDetail() {
               <span className="material-symbols-outlined text-[20px]">edit</span>
               Edit
             </Link>
-            <button className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-              <span className="material-symbols-outlined text-[20px]">download</span>
-              Download PDF
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">print</span>
+              Print / PDF
             </button>
             <Link
               to="/invoices/new"
@@ -261,8 +268,11 @@ export default function QuotationDetail() {
               <span className="material-symbols-outlined text-[20px]">edit</span>
               Edit
             </Link>
-            <button className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm">
-              <span className="material-symbols-outlined text-[20px]">download</span>
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[20px]">print</span>
               PDF
             </button>
             <Link
@@ -275,6 +285,16 @@ export default function QuotationDetail() {
           </div>
         </div>
       </div>
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && (
+        <PrintPreview
+          type="quotation"
+          data={quotation}
+          client={client}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
     </div>
   )
 }

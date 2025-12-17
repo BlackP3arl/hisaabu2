@@ -4,6 +4,7 @@ import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import ItemSelector from '../components/ItemSelector'
 import ClientSelector from '../components/ClientSelector'
+import PrintPreview from '../components/PrintPreview'
 
 export default function InvoiceForm() {
   const { id } = useParams()
@@ -13,6 +14,7 @@ export default function InvoiceForm() {
 
   const [showItemSelector, setShowItemSelector] = useState(false)
   const [showClientSelector, setShowClientSelector] = useState(false)
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [formData, setFormData] = useState({
     clientId: invoice?.clientId || '',
     date: invoice?.date || new Date().toISOString().split('T')[0],
@@ -117,11 +119,17 @@ export default function InvoiceForm() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
               <span className="material-symbols-outlined text-[20px]">visibility</span>
               Preview
             </button>
-            <button className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
               <span className="material-symbols-outlined text-[20px]">download</span>
               PDF
             </button>
@@ -459,7 +467,10 @@ export default function InvoiceForm() {
         {/* Mobile Bottom Bar */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/80 dark:bg-slate-800/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           <div className="flex gap-3 max-w-lg mx-auto">
-            <button className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-95 transition-transform">
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-95 transition-transform"
+            >
               <span className="material-symbols-outlined text-[20px]">visibility</span>
               Preview
             </button>
@@ -485,6 +496,20 @@ export default function InvoiceForm() {
           onSelect={handleSelectClient}
           onClose={() => setShowClientSelector(false)}
           selectedClientId={formData.clientId}
+        />
+      )}
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && (
+        <PrintPreview
+          type="invoice"
+          data={{
+            ...formData,
+            number,
+            amount: formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
+          }}
+          client={client}
+          onClose={() => setShowPrintPreview(false)}
         />
       )}
     </div>

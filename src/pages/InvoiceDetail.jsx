@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
+import PrintPreview from '../components/PrintPreview'
 
 export default function InvoiceDetail() {
   const { id } = useParams()
-  const { invoices, company } = useData()
+  const { invoices, clients, company } = useData()
   const invoice = invoices.find(i => i.id === parseInt(id))
+  const client = clients.find(c => c.id === invoice?.clientId)
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
 
   if (!invoice) return <div className="flex items-center justify-center min-h-screen">Invoice not found</div>
 
@@ -44,9 +48,12 @@ export default function InvoiceDetail() {
               <span className="material-symbols-outlined text-[20px]">edit</span>
               Edit
             </Link>
-            <button className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-              <span className="material-symbols-outlined text-[20px]">download</span>
-              Download PDF
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">print</span>
+              Print / PDF
             </button>
             <button className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
               <span className="material-symbols-outlined text-[20px]">share</span>
@@ -253,8 +260,11 @@ export default function InvoiceDetail() {
               <span className="material-symbols-outlined text-[20px]">edit</span>
               Edit
             </Link>
-            <button className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm">
-              <span className="material-symbols-outlined text-[20px]">download</span>
+            <button 
+              onClick={() => setShowPrintPreview(true)}
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[20px]">print</span>
               PDF
             </button>
             <button className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md">
@@ -264,6 +274,16 @@ export default function InvoiceDetail() {
           </div>
         </div>
       </div>
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && (
+        <PrintPreview
+          type="invoice"
+          data={invoice}
+          client={client}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
     </div>
   )
 }
