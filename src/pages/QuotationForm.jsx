@@ -2,27 +2,31 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
+import ItemSelector from '../components/ItemSelector'
 
 export default function QuotationForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { quotations, clients, addQuotation, updateQuotation } = useData()
+  const { quotations, clients, categories, addQuotation, updateQuotation } = useData()
   const quotation = id ? quotations.find(q => q.id === parseInt(id)) : null
 
+  const [showItemSelector, setShowItemSelector] = useState(false)
   const [formData, setFormData] = useState({
     clientId: quotation?.clientId || '',
     date: quotation?.date || new Date().toISOString().split('T')[0],
     expiry: quotation?.expiry || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    items: quotation?.items || [
-      { name: 'UI/UX Design Service', description: 'Mobile app interface design for iOS...', quantity: 1, price: 2000, discount: 0, tax: 10 },
-      { name: 'Frontend Development', description: 'React Native Implementation...', quantity: 1, price: 3500, discount: 5, tax: 10 },
-    ],
+    items: quotation?.items?.length > 0 ? quotation.items : [],
     notes: quotation?.notes || '',
     terms: quotation?.terms || '',
   })
 
   const client = clients.find(c => c.id === formData.clientId)
   const number = quotation?.number || `#Q-2024-${String(quotations.length + 1).padStart(3, '0')}`
+
+  const getCategoryColor = (categoryId) => {
+    const category = categories.find(c => c.id === categoryId)
+    return category?.color || '#6B7280'
+  }
 
   const calculateTotals = () => {
     const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
@@ -37,6 +41,20 @@ export default function QuotationForm() {
   }
 
   const { subtotal, discount, tax, total } = calculateTotals()
+
+  const handleAddItem = (item) => {
+    setFormData({ ...formData, items: [...formData.items, item] })
+  }
+
+  const handleUpdateItem = (index, field, value) => {
+    const newItems = [...formData.items]
+    newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+    setFormData({ ...formData, items: newItems })
+  }
+
+  const handleRemoveItem = (index) => {
+    setFormData({ ...formData, items: formData.items.filter((_, i) => i !== index) })
+  }
 
   const handleSave = () => {
     const data = {
@@ -160,88 +178,138 @@ export default function QuotationForm() {
                     <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">Line Items</h3>
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">{formData.items.length} Items</span>
                   </div>
-                  
-                  {/* Desktop Table View */}
-                  <div className="hidden lg:block overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-slate-50 dark:bg-slate-700/50">
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Item</th>
-                          <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-20">Qty</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Price</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Disc %</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Tax %</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Total</th>
-                          <th className="w-20"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+
+                  {formData.items.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                      <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">inventory_2</span>
+                      <p className="text-slate-500 dark:text-slate-400 mt-2">No items added yet</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Click the button below to add items from your catalog</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Desktop Table View */}
+                      <div className="hidden lg:block overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-700/50">
+                              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Item</th>
+                              <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-20">Qty</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Price</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Disc %</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Tax %</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Total</th>
+                              <th className="w-16"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {formData.items.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <div 
+                                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0"
+                                      style={{ backgroundColor: getCategoryColor(item.categoryId) }}
+                                    >
+                                      {item.name.charAt(0)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-slate-900 dark:text-white text-sm truncate">{item.name}</p>
+                                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">{item.description}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <input 
+                                    type="number" 
+                                    value={item.quantity} 
+                                    onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
+                                    className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                  />
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <input 
+                                    type="number" 
+                                    value={item.price} 
+                                    onChange={(e) => handleUpdateItem(index, 'price', e.target.value)}
+                                    className="w-24 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                  />
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <input 
+                                    type="number" 
+                                    value={item.discount} 
+                                    onChange={(e) => handleUpdateItem(index, 'discount', e.target.value)}
+                                    className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                  />
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <input 
+                                    type="number" 
+                                    value={item.tax} 
+                                    onChange={(e) => handleUpdateItem(index, 'tax', e.target.value)}
+                                    className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                  />
+                                </td>
+                                <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
+                                  ${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button 
+                                    onClick={() => handleRemoveItem(index)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  >
+                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Card View */}
+                      <div className="lg:hidden space-y-3">
                         {formData.items.map((item, index) => (
-                          <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                            <td className="px-4 py-3">
-                              <div>
-                                <p className="font-medium text-slate-900 dark:text-white text-sm">{item.name}</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">{item.description}</p>
+                          <div key={index} className="relative bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 overflow-hidden">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0"
+                                  style={{ backgroundColor: getCategoryColor(item.categoryId) }}
+                                >
+                                  {item.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{item.name}</h4>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</p>
+                                </div>
                               </div>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <input type="number" value={item.quantity} className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <input type="number" value={item.price} className="w-24 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <input type="number" value={item.discount} className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <input type="number" value={item.tax} className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
-                            </td>
-                            <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                              ${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex justify-end gap-1">
-                                <button className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded hover:bg-red-50 dark:hover:bg-red-900/20">
-                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                              <span className="font-bold text-gray-900 dark:text-white text-sm">${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
+                                <span>x ${item.price.toFixed(2)}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={() => handleRemoveItem(index)}
+                                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">delete</span>
                                 </button>
                               </div>
-                            </td>
-                          </tr>
+                            </div>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Mobile Card View */}
-                  <div className="lg:hidden space-y-3">
-                    {formData.items.map((item, index) => (
-                      <div key={index} className="relative bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 overflow-hidden">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{item.name}</h4>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">{item.description}</p>
-                          </div>
-                          <span className="font-bold text-gray-900 dark:text-white text-sm">${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                          <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                            <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
-                            <span>x ${item.price.toFixed(2)}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
-                              <span className="material-symbols-outlined text-[20px]">delete</span>
-                            </button>
-                            <button className="p-1.5 text-gray-400 hover:text-primary transition-colors">
-                              <span className="material-symbols-outlined text-[20px]">edit</span>
-                            </button>
-                          </div>
-                        </div>
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
 
-                  <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 dark:bg-primary/10 py-3.5 text-primary hover:bg-primary/10 hover:border-primary transition-all mt-4">
+                  <button 
+                    onClick={() => setShowItemSelector(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 dark:bg-primary/10 py-3.5 text-primary hover:bg-primary/10 hover:border-primary transition-all mt-4"
+                  >
                     <span className="material-symbols-outlined text-lg">add_circle</span>
                     <span className="text-sm font-semibold">Add Line Item</span>
                   </button>
@@ -284,16 +352,12 @@ export default function QuotationForm() {
                       </div>
                       {discount > 0 && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-500 dark:text-gray-400">
-                            Discount <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded ml-1">5%</span>
-                          </span>
+                          <span className="text-gray-500 dark:text-gray-400">Discount</span>
                           <span className="font-medium text-green-600 dark:text-green-400">-${discount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">
-                          Tax <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded ml-1">10%</span>
-                        </span>
+                        <span className="text-gray-500 dark:text-gray-400">Tax</span>
                         <span className="font-medium text-gray-900 dark:text-white">${tax.toFixed(2)}</span>
                       </div>
                       <div className="h-px w-full bg-gray-200 dark:bg-gray-700 my-3"></div>
@@ -338,6 +402,14 @@ export default function QuotationForm() {
           </div>
         </div>
       </div>
+
+      {/* Item Selector Modal */}
+      {showItemSelector && (
+        <ItemSelector
+          onSelect={handleAddItem}
+          onClose={() => setShowItemSelector(false)}
+        />
+      )}
     </div>
   )
 }
