@@ -5,6 +5,7 @@ import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
 import ClientForm from './pages/ClientForm'
+import ClientDetail from './pages/ClientDetail'
 import QuotationsList from './pages/QuotationsList'
 import QuotationForm from './pages/QuotationForm'
 import InvoicesList from './pages/InvoicesList'
@@ -42,6 +43,7 @@ function App() {
               <Route path="/clients" element={<Clients />} />
               <Route path="/clients/new" element={<ClientForm />} />
               <Route path="/clients/:id" element={<ClientForm />} />
+              <Route path="/clients/:id/view" element={<ClientDetail />} />
               <Route path="/quotations" element={<QuotationsList />} />
               <Route path="/quotations/new" element={<QuotationForm />} />
               <Route path="/quotations/:id" element={<QuotationForm />} />

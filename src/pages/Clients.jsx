@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
 
@@ -25,10 +26,13 @@ export default function Clients() {
   const getStatusText = (status) => status.toUpperCase()
 
   const headerActions = (
-    <button className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
+    <Link 
+      to="/clients/new"
+      className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold"
+    >
       <span className="material-symbols-outlined text-[20px]">add</span>
       <span className="hidden sm:inline">New Client</span>
-    </button>
+    </Link>
   )
 
   return (
@@ -126,30 +130,34 @@ export default function Clients() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-1">
-                      <button
+                      <Link
+                        to={`/clients/${client.id}/view`}
                         className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                         title="View"
                       >
                         <span className="material-symbols-outlined text-[20px]">visibility</span>
-                      </button>
-                      <button
+                      </Link>
+                      <Link
+                        to={`/clients/${client.id}`}
                         className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                         title="Edit"
                       >
                         <span className="material-symbols-outlined text-[20px]">edit</span>
-                      </button>
-                      <button
+                      </Link>
+                      <a
+                        href={`tel:${client.phone}`}
                         className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                         title="Call"
                       >
                         <span className="material-symbols-outlined text-[20px]">call</span>
-                      </button>
-                      <button
+                      </a>
+                      <a
+                        href={`mailto:${client.email}`}
                         className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                         title="Email"
                       >
                         <span className="material-symbols-outlined text-[20px]">mail</span>
-                      </button>
+                      </a>
                       <button
                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                         title="Delete"
@@ -175,7 +183,11 @@ export default function Clients() {
       {/* Mobile Card View */}
       <div className="lg:hidden px-4 py-4 space-y-3">
         {filteredClients.map((client) => (
-          <div key={client.id} className="group bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 relative overflow-hidden active:scale-[0.99] transition-transform">
+          <Link 
+            key={client.id} 
+            to={`/clients/${client.id}/view`}
+            className="group block bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 relative overflow-hidden active:scale-[0.99] transition-transform"
+          >
             <div className="flex justify-between items-start gap-3">
               <div className="flex gap-3 flex-1 min-w-0">
                 <div className="shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg border border-slate-100 dark:border-slate-600">
@@ -191,9 +203,9 @@ export default function Clients() {
                   <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{client.email} • {client.address}</p>
                 </div>
               </div>
-              <button className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 -mr-2">
-                <span className="material-symbols-outlined">more_vert</span>
-              </button>
+              <span className="shrink-0 text-slate-400 p-1 -mr-2">
+                <span className="material-symbols-outlined">chevron_right</span>
+              </span>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
               <div className="flex flex-col">
@@ -214,16 +226,24 @@ export default function Clients() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <button className="h-8 w-8 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-colors">
+              <div className="flex gap-2" onClick={(e) => e.preventDefault()}>
+                <a 
+                  href={`tel:${client.phone}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-8 w-8 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-colors"
+                >
                   <span className="material-symbols-outlined text-[18px]">call</span>
-                </button>
-                <button className="h-8 w-8 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-colors">
+                </a>
+                <a 
+                  href={`mailto:${client.email}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-8 w-8 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-colors"
+                >
                   <span className="material-symbols-outlined text-[18px]">mail</span>
-                </button>
+                </a>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
 
         {filteredClients.length === 0 && (
@@ -235,9 +255,12 @@ export default function Clients() {
       </div>
 
       {/* Mobile FAB */}
-      <button className="lg:hidden fixed z-30 bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-primary/40 flex items-center justify-center transform transition-transform active:scale-95 hover:bg-blue-600">
+      <Link 
+        to="/clients/new"
+        className="lg:hidden fixed z-30 bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-primary/40 flex items-center justify-center transform transition-transform active:scale-95 hover:bg-blue-600"
+      >
         <span className="material-symbols-outlined text-[28px]">add</span>
-      </button>
+      </Link>
     </Layout>
   )
 }
