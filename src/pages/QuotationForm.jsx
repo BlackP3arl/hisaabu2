@@ -1,0 +1,343 @@
+import { useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useData } from '../context/DataContext'
+import Sidebar from '../components/Sidebar'
+
+export default function QuotationForm() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { quotations, clients, addQuotation, updateQuotation } = useData()
+  const quotation = id ? quotations.find(q => q.id === parseInt(id)) : null
+
+  const [formData, setFormData] = useState({
+    clientId: quotation?.clientId || '',
+    date: quotation?.date || new Date().toISOString().split('T')[0],
+    expiry: quotation?.expiry || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    items: quotation?.items || [
+      { name: 'UI/UX Design Service', description: 'Mobile app interface design for iOS...', quantity: 1, price: 2000, discount: 0, tax: 10 },
+      { name: 'Frontend Development', description: 'React Native Implementation...', quantity: 1, price: 3500, discount: 5, tax: 10 },
+    ],
+    notes: quotation?.notes || '',
+    terms: quotation?.terms || '',
+  })
+
+  const client = clients.find(c => c.id === formData.clientId)
+  const number = quotation?.number || `#Q-2024-${String(quotations.length + 1).padStart(3, '0')}`
+
+  const calculateTotals = () => {
+    const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+    const discount = formData.items.reduce((sum, item) => sum + (item.quantity * item.price * item.discount / 100), 0)
+    const afterDiscount = subtotal - discount
+    const tax = formData.items.reduce((sum, item) => {
+      const itemTotal = item.quantity * item.price * (1 - item.discount / 100)
+      return sum + (itemTotal * item.tax / 100)
+    }, 0)
+    const total = afterDiscount + tax
+    return { subtotal, discount, tax, total }
+  }
+
+  const { subtotal, discount, tax, total } = calculateTotals()
+
+  const handleSave = () => {
+    const data = {
+      ...formData,
+      number,
+      amount: total,
+      clientName: client?.name || '',
+      status: quotation?.status || 'draft',
+    }
+    if (id) {
+      updateQuotation(parseInt(id), data)
+    } else {
+      addQuotation(data)
+    }
+    navigate('/quotations')
+  }
+
+  return (
+    <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
+      <Sidebar />
+      
+      <div className="flex-1 flex flex-col pb-24 lg:pb-8">
+        {/* Desktop Header */}
+        <header className="hidden lg:flex items-center justify-between px-8 py-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
+          <div className="flex items-center gap-4">
+            <Link to="/quotations" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <span className="material-symbols-outlined text-slate-600 dark:text-slate-400">arrow_back</span>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{id ? 'Edit Quotation' : 'New Quotation'}</h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{number}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+              <span className="material-symbols-outlined text-[20px]">visibility</span>
+              Preview
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+              <span className="material-symbols-outlined text-[20px]">download</span>
+              PDF
+            </button>
+            <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
+              <span className="material-symbols-outlined text-[20px]">send</span>
+              Send Quotation
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile Header */}
+        <div className="lg:hidden sticky top-0 z-20 flex items-center bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 justify-between border-b border-gray-200 dark:border-gray-800">
+          <Link to="/quotations" className="text-gray-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+            <span className="material-symbols-outlined">close</span>
+          </Link>
+          <h2 className="text-gray-900 dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">{id ? 'Edit Quotation' : 'New Quotation'}</h2>
+          <button onClick={handleSave} className="flex items-center justify-end px-2">
+            <p className="text-primary text-base font-bold leading-normal tracking-wide shrink-0">Save</p>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 p-4 lg:p-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+              {/* Left Column - Main Form */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Document Info */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 hidden lg:block">Document Details</h3>
+                  <div className="flex items-center justify-between mb-4 lg:mb-6">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quotation No.</span>
+                      <span className="text-xl font-bold text-gray-900 dark:text-white font-mono">{number}</span>
+                    </div>
+                    <div className="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wide">
+                      Draft
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Issue Date</span>
+                      <input
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</span>
+                      <input
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                        type="date"
+                        value={formData.expiry}
+                        onChange={(e) => setFormData({ ...formData, expiry: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Client Selection */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                  <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white mb-3 lg:mb-4">Client Details</h3>
+                  <div className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 p-3 rounded-lg -mx-3 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="size-10 lg:size-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
+                        {client?.name?.charAt(0) || 'A'}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{client?.name || 'Select Client'}</span>
+                        <span className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">{client?.email || 'Click to select a client'}</span>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">chevron_right</span>
+                  </div>
+                </div>
+
+                {/* Line Items */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">Line Items</h3>
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">{formData.items.length} Items</span>
+                  </div>
+                  
+                  {/* Desktop Table View */}
+                  <div className="hidden lg:block overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-700/50">
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Item</th>
+                          <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-20">Qty</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Price</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Disc %</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Tax %</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Total</th>
+                          <th className="w-20"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {formData.items.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td className="px-4 py-3">
+                              <div>
+                                <p className="font-medium text-slate-900 dark:text-white text-sm">{item.name}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">{item.description}</p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <input type="number" value={item.quantity} className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <input type="number" value={item.price} className="w-24 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <input type="number" value={item.discount} className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <input type="number" value={item.tax} className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" />
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
+                              ${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex justify-end gap-1">
+                                <button className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded hover:bg-red-50 dark:hover:bg-red-900/20">
+                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden space-y-3">
+                    {formData.items.map((item, index) => (
+                      <div key={index} className="relative bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 overflow-hidden">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{item.name}</h4>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">{item.description}</p>
+                          </div>
+                          <span className="font-bold text-gray-900 dark:text-white text-sm">${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                            <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
+                            <span>x ${item.price.toFixed(2)}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
+                              <span className="material-symbols-outlined text-[20px]">delete</span>
+                            </button>
+                            <button className="p-1.5 text-gray-400 hover:text-primary transition-colors">
+                              <span className="material-symbols-outlined text-[20px]">edit</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 dark:bg-primary/10 py-3.5 text-primary hover:bg-primary/10 hover:border-primary transition-all mt-4">
+                    <span className="material-symbols-outlined text-lg">add_circle</span>
+                    <span className="text-sm font-semibold">Add Line Item</span>
+                  </button>
+                </div>
+
+                {/* Notes & Terms */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                    <textarea
+                      className="block w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary text-sm p-3 resize-none"
+                      placeholder="Add any notes for the client..."
+                      rows="4"
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    />
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Terms & Conditions</label>
+                    <textarea
+                      className="block w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary text-sm p-3 resize-none"
+                      placeholder="Payment terms, delivery details..."
+                      rows="4"
+                      value={formData.terms}
+                      onChange={(e) => setFormData({ ...formData, terms: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Summary */}
+              <div className="lg:col-span-1">
+                <div className="lg:sticky lg:top-28 space-y-6">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Summary</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
+                        <span className="font-medium text-gray-900 dark:text-white">${subtotal.toFixed(2)}</span>
+                      </div>
+                      {discount > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">
+                            Discount <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded ml-1">5%</span>
+                          </span>
+                          <span className="font-medium text-green-600 dark:text-green-400">-${discount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Tax <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded ml-1">10%</span>
+                        </span>
+                        <span className="font-medium text-gray-900 dark:text-white">${tax.toFixed(2)}</span>
+                      </div>
+                      <div className="h-px w-full bg-gray-200 dark:bg-gray-700 my-3"></div>
+                      <div className="flex justify-between items-end">
+                        <span className="text-base font-bold text-gray-900 dark:text-white">Grand Total</span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
+                          <span className="text-xs text-gray-400">USD</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Desktop Actions */}
+                  <div className="hidden lg:block space-y-3">
+                    <button onClick={handleSave} className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors">
+                      <span className="material-symbols-outlined text-[20px]">send</span>
+                      Send Quotation
+                    </button>
+                    <button className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <span className="material-symbols-outlined text-[20px]">save</span>
+                      Save as Draft
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Bar */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/80 dark:bg-slate-800/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+          <div className="flex gap-3 max-w-lg mx-auto">
+            <button className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-95 transition-transform">
+              <span className="material-symbols-outlined text-[20px]">visibility</span>
+              Preview
+            </button>
+            <button onClick={handleSave} className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
+              <span className="material-symbols-outlined text-[20px]">send</span>
+              Send Quotation
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Invoices List</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar hiding for smooth horizontal scrolling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display antialiased overflow-x-hidden pb-24">
+<!-- Top App Bar -->
+<div class="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center px-4 py-3 justify-between">
+<h1 class="text-xl font-bold tracking-tight">Invoices</h1>
+<button class="bg-primary/10 hover:bg-primary/20 active:bg-primary/30 text-primary p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[24px]">add</span>
+</button>
+</div>
+<!-- Search Bar -->
+<div class="px-4 pb-3">
+<div class="relative flex items-center w-full h-10 rounded-lg focus-within:ring-2 focus-within:ring-primary/50 bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+<div class="grid place-items-center h-full w-10 text-slate-400">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="peer h-full w-full outline-none text-sm text-slate-700 dark:text-slate-200 bg-transparent pr-2 placeholder-slate-400" id="search" placeholder="Search client, ID or amount..." type="text"/>
+</div>
+</div>
+<!-- Chips / Filter -->
+<div class="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
+<button class="flex shrink-0 items-center justify-center rounded-full bg-slate-900 dark:bg-white px-4 py-1.5 transition-colors">
+<p class="text-white dark:text-slate-900 text-xs font-semibold">All</p>
+</button>
+<button class="flex shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-1.5 transition-colors">
+<p class="text-slate-600 dark:text-slate-300 text-xs font-medium">Draft</p>
+</button>
+<button class="flex shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-1.5 transition-colors">
+<p class="text-slate-600 dark:text-slate-300 text-xs font-medium">Sent</p>
+</button>
+<button class="flex shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-1.5 transition-colors">
+<p class="text-slate-600 dark:text-slate-300 text-xs font-medium">Paid</p>
+</button>
+<button class="flex shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-1.5 transition-colors">
+<p class="text-slate-600 dark:text-slate-300 text-xs font-medium">Overdue</p>
+</button>
+</div>
+</div>
+<!-- Main Content List -->
+<div class="flex flex-col gap-4 p-4">
+<!-- Summary Stats (Optional but helpful context) -->
+<div class="flex justify-between items-center px-1 mb-1">
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">This Month</p>
+<div class="flex items-center gap-1 cursor-pointer group">
+<p class="text-primary text-xs font-semibold">Sort by Date</p>
+<span class="material-symbols-outlined text-[16px] text-primary group-hover:rotate-180 transition-transform">sort</span>
+</div>
+</div>
+<!-- Card: Paid -->
+<div class="relative flex flex-col gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100 dark:border-slate-700">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+<img alt="Client Logo" class="h-full w-full object-cover" data-alt="Global Corp logo avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCq_mHob4nq3PdTOEoWz9y44JgNtkwh2l2EkqU-r8f8LOXzolRf9MI9LsmWBsZlZc0eKt1Etd30QYO-z9gCh-p7kwQRX_-1n2vDccdJfzE-0GIWXa3kKr-l1s_jmErwqddyNJ5skJQ1RT2CGpuHGoOAf2MuNpYaAKu7LMNsWQFtoImfICFP_Rd84uniQESCx8Q7PFWMSkipPlZfLMpu__95I9fT6DsLuGN6MugmY1u3w1BgAS_PZ6UtJFlZ55kCCWMVuNipTC7zgvsl"/>
+</div>
+<div>
+<h3 class="text-slate-900 dark:text-white text-sm font-bold leading-tight">Global Corp Ltd.</h3>
+<p class="text-slate-500 dark:text-slate-400 text-xs mt-0.5">#INV-0023</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-slate-900 dark:text-white font-bold text-base">$1,250.00</span>
+<span class="text-slate-400 dark:text-slate-500 text-[10px] font-medium mt-0.5">Due Oct 24</span>
+</div>
+</div>
+<div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3 mt-1">
+<div class="flex items-center justify-center px-2.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800">
+<span class="text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wide">Paid</span>
+</div>
+<div class="flex gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Card: Overdue -->
+<div class="relative flex flex-col gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100 dark:border-slate-700">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+<img alt="Client Logo" class="h-full w-full object-cover" data-alt="Acme Inc logo avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAaETjiE0WpMNP-3hcjHeE0j5EH2uyIRYSRfk1urBHIq5Ojrn_4OLjveu5Lp57zZ2m9PAcRBJrKgcWsxGa0qCDW3E_JPYd01gvLdzTmGo0pcvXFzwfkwgUxWD2HS7kIKO9q_WqkC5C1quqapflmUnI7jQv3jEyRTiTwLpUJDa4Mos-4zBkF6rMuDXAZfN_0gytWuuYmd-5PWFZl7kuA68JNB8elb6WvTdc_1b5W6nC2WMUNUeQk8BsD3oH51ZkANK_Ynbc4_AU3uo7h"/>
+</div>
+<div>
+<h3 class="text-slate-900 dark:text-white text-sm font-bold leading-tight">Acme Industries</h3>
+<p class="text-slate-500 dark:text-slate-400 text-xs mt-0.5">#INV-0024</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-slate-900 dark:text-white font-bold text-base">$4,500.00</span>
+<span class="text-red-500 dark:text-red-400 text-[10px] font-medium mt-0.5">Due Oct 30</span>
+</div>
+</div>
+<div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3 mt-1">
+<div class="flex items-center justify-center px-2.5 py-0.5 rounded-md bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800">
+<span class="text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wide">Overdue</span>
+</div>
+<div class="flex gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">notifications_active</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Card: Draft -->
+<div class="relative flex flex-col gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100 dark:border-slate-700">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-500 dark:text-indigo-300 font-bold text-xs shrink-0">
+                        DS
+                    </div>
+<div>
+<h3 class="text-slate-900 dark:text-white text-sm font-bold leading-tight">Design Studio</h3>
+<p class="text-slate-500 dark:text-slate-400 text-xs mt-0.5">#INV-0025</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-slate-900 dark:text-white font-bold text-base">$850.00</span>
+<span class="text-slate-400 dark:text-slate-500 text-[10px] font-medium mt-0.5">Created Today</span>
+</div>
+</div>
+<div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3 mt-1">
+<div class="flex items-center justify-center px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600">
+<span class="text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wide">Draft</span>
+</div>
+<div class="flex gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Card: Partially Paid -->
+<div class="relative flex flex-col gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100 dark:border-slate-700">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold text-xs shrink-0">
+                        BW
+                    </div>
+<div>
+<h3 class="text-slate-900 dark:text-white text-sm font-bold leading-tight">Bright Web Sol.</h3>
+<p class="text-slate-500 dark:text-slate-400 text-xs mt-0.5">#INV-0026</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-slate-900 dark:text-white font-bold text-base">$3,200.00</span>
+<span class="text-amber-600 dark:text-amber-400 text-[10px] font-medium mt-0.5">Due Nov 15</span>
+</div>
+</div>
+<div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3 mt-1">
+<div class="flex items-center justify-center px-2.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800">
+<span class="text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase tracking-wide">Partial</span>
+</div>
+<!-- Progress Bar for Partial Payment -->
+<div class="flex-1 mx-3 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-amber-400 w-2/3 rounded-full"></div>
+</div>
+<div class="flex gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Card: Sent -->
+<div class="relative flex flex-col gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100 dark:border-slate-700 opacity-60">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs shrink-0">
+                        JD
+                    </div>
+<div>
+<h3 class="text-slate-900 dark:text-white text-sm font-bold leading-tight">John Doe Personal</h3>
+<p class="text-slate-500 dark:text-slate-400 text-xs mt-0.5">#INV-0022</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-slate-900 dark:text-white font-bold text-base">$250.00</span>
+<span class="text-slate-400 dark:text-slate-500 text-[10px] font-medium mt-0.5">Due Dec 01</span>
+</div>
+</div>
+<div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3 mt-1">
+<div class="flex items-center justify-center px-2.5 py-0.5 rounded-md bg-sky-50 dark:bg-sky-900/30 border border-sky-100 dark:border-sky-800">
+<span class="text-sky-600 dark:text-sky-400 text-[10px] font-bold uppercase tracking-wide">Sent</span>
+</div>
+<div class="flex gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-primary/5">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation Bar -->
+<div class="fixed bottom-0 w-full z-40 bg-white/95 dark:bg-background-dark/95 backdrop-blur border-t border-slate-200 dark:border-slate-800">
+<div class="grid grid-cols-4 h-16 max-w-lg mx-auto">
+<button class="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[24px]">home</span>
+<span class="text-[10px] font-medium">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-1 text-primary">
+<span class="material-symbols-outlined text-[24px] fill-current">receipt_long</span>
+<span class="text-[10px] font-medium">Invoices</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[24px]">groups</span>
+<span class="text-[10px] font-medium">Clients</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+<span class="text-[10px] font-medium">Settings</span>
+</button>
+</div>
+</div>
+<!-- Floating Action Button (Alternative quick access) -->
+<div class="fixed bottom-20 right-4 z-40">
+<button class="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 hover:bg-blue-600 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[28px]">add</span>
+</button>
+</div>
+</body></html>

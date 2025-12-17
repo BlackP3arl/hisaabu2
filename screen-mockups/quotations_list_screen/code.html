@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quotations List</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "primary-dark": "#0f4bc4",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                        "card-light": "#ffffff",
+                        "card-dark": "#1a2230",
+                        "text-main": "#0d121b",
+                        "text-secondary": "#64748b",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar hiding for chips */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .bottom-nav-shadow {
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.05);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-main dark:text-white antialiased">
+<div class="relative min-h-screen flex flex-col pb-24 mx-auto max-w-md bg-background-light dark:bg-background-dark shadow-2xl overflow-hidden border-x border-gray-100 dark:border-gray-800">
+<!-- Header Section -->
+<header class="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm pt-safe-top">
+<div class="px-5 py-4 flex items-center justify-between">
+<div>
+<h1 class="text-2xl font-bold tracking-tight text-text-main dark:text-white">Quotations</h1>
+<p class="text-xs text-text-secondary font-medium mt-0.5">5 Active Quotes</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-text-main dark:text-white">
+<span class="material-symbols-outlined !text-[24px]">notifications</span>
+<span class="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-[#101622]"></span>
+</button>
+<div class="w-9 h-9 rounded-full bg-cover bg-center border border-gray-200 dark:border-gray-700" data-alt="User profile avatar showing a smiling man" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBVcZMr2CnP2v7CYUXsfPdkbWHnjXsDFSHOABqDLSDOH9Vlvi532ep_-2felinXON2GcSUhh2BpogbFG0AANEYHt8KsGaURIGvSyH0P-mY9T9OlOpp-57a1espErGkrFpK6t3abErpOaoxOQcKAjVYr5giu4SFw6deQuqesySMBI4QjChn6as1wKnHE_PpK9ChSyg8HSUZJQowEdxOOkdC3lhjaLUBaikx81rwnvAYK8SEIwtGV22qFMtWm1lmpW3RL6daOliIn5Lxl');">
+</div>
+</div>
+</div>
+<!-- Search Bar -->
+<div class="px-5 pb-2">
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-text-secondary !text-[20px]">search</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-3 border-none rounded-xl bg-white dark:bg-card-dark text-text-main dark:text-white placeholder-text-secondary focus:ring-2 focus:ring-primary focus:bg-white transition-all shadow-sm text-sm" placeholder="Search client, ID, or amount..." type="text"/>
+<div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+<button class="p-1 rounded-md text-text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined !text-[20px]">tune</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-2 overflow-x-auto px-5 py-3 no-scrollbar items-center">
+<button class="shrink-0 h-8 px-4 rounded-full bg-text-main dark:bg-white text-white dark:text-text-main text-xs font-semibold shadow-sm transition-transform active:scale-95">
+                    All
+                </button>
+<button class="shrink-0 h-8 px-4 rounded-full bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 text-text-secondary dark:text-gray-300 text-xs font-medium hover:border-primary/50 transition-colors whitespace-nowrap">
+                    Draft
+                </button>
+<button class="shrink-0 h-8 px-4 rounded-full bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 text-text-secondary dark:text-gray-300 text-xs font-medium hover:border-primary/50 transition-colors whitespace-nowrap">
+                    Sent
+                </button>
+<button class="shrink-0 h-8 px-4 rounded-full bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 text-text-secondary dark:text-gray-300 text-xs font-medium hover:border-primary/50 transition-colors whitespace-nowrap">
+                    Accepted
+                </button>
+<button class="shrink-0 h-8 px-4 rounded-full bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 text-text-secondary dark:text-gray-300 text-xs font-medium hover:border-primary/50 transition-colors whitespace-nowrap">
+                    Expired
+                </button>
+</div>
+<!-- Gradient fade at bottom of header -->
+<div class="h-4 bg-gradient-to-b from-background-light dark:from-background-dark to-transparent opacity-100"></div>
+</header>
+<!-- Quotations List -->
+<main class="flex-1 px-5 flex flex-col gap-4">
+<!-- Card 1: Accepted -->
+<div class="group bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-transparent hover:border-primary/20 transition-all cursor-pointer relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center p-1 border border-gray-100 dark:border-gray-700">
+<img alt="Acme Corp Logo" class="rounded-md" data-alt="Acme Corporation minimalist logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaF8ysffMuULnkiixoqiMC2sb_8C3VUsBxKX12KfGwvFVSbwQRvF5x-XPpFIpZ2i8WbRog8g7D0hNejm8_RG2rMxlGi1ZE0MS_hF50RoMj4CryswJeEAVes3whv534ZRNfTc3_39XvRbOtfNY3VdTRcGbLrw7sp6074EmUqK4VdfHT0uDpA4_-aRHZvIsG7RL77WYCbQAzL_OdZmNR1hSBqxUsTWBOWsVJL4LF7gMt8RT1LpDZwMHIkcn1mGT9t43JO0foHIFCbL9m"/>
+</div>
+<div>
+<h3 class="text-sm font-bold text-text-main dark:text-white leading-tight">Acme Corp</h3>
+<p class="text-[11px] text-text-secondary font-medium mt-0.5">#QT-2023-001</p>
+</div>
+</div>
+<button class="text-gray-400 hover:text-text-main dark:hover:text-white p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined !text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between pl-2">
+<div>
+<p class="text-[11px] text-text-secondary mb-0.5">Oct 24, 2023</p>
+<p class="text-base font-bold text-text-main dark:text-white">$1,250.00</p>
+</div>
+<div class="px-2.5 py-1 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30 flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+<span class="text-[11px] font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">Accepted</span>
+</div>
+</div>
+</div>
+<!-- Card 2: Sent -->
+<div class="group bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-transparent hover:border-primary/20 transition-all cursor-pointer relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center p-1 border border-gray-100 dark:border-gray-700">
+<img alt="Globex Logo" class="rounded-md" data-alt="Globex Inc abstract blue logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSsQoI4loz5iBbpG0jMej6r1vbRLue45xPeeBj5sUY1T-AYmoNhWALspmqdAqq0LMo1llBhrMLyE4e4HzWq4-6N4mfVS3LSI3-uyKcpdKM9jrErrigROfNEPwAtPVYgL0q3wbONj90TGF7iEd8SjS9tnimzn1LmBeohRbxHPntE5rDxV3CccVZnMDF6d7PsL1QETfDQ3xmFN08IpEKOymoQN1wtsKMWqD0rw0qImGD8y3GufMOCvvShlxiLpCQKQGOViN1w1yIk9jp"/>
+</div>
+<div>
+<h3 class="text-sm font-bold text-text-main dark:text-white leading-tight">Globex Inc.</h3>
+<p class="text-[11px] text-text-secondary font-medium mt-0.5">#QT-2023-005</p>
+</div>
+</div>
+<button class="text-gray-400 hover:text-text-main dark:hover:text-white p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined !text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between pl-2">
+<div>
+<p class="text-[11px] text-text-secondary mb-0.5">Oct 22, 2023</p>
+<p class="text-base font-bold text-text-main dark:text-white">$3,400.00</p>
+</div>
+<div class="px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
+<span class="text-[11px] font-semibold text-primary dark:text-blue-400 uppercase tracking-wide">Sent</span>
+</div>
+</div>
+</div>
+<!-- Card 3: Draft -->
+<div class="group bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-transparent hover:border-primary/20 transition-all cursor-pointer relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-gray-400"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center p-1 border border-gray-100 dark:border-gray-700">
+<div class="text-text-secondary font-bold text-xs" data-alt="Stark Industries text logo placeholder">SI</div>
+</div>
+<div>
+<h3 class="text-sm font-bold text-text-main dark:text-white leading-tight">Stark Ind</h3>
+<p class="text-[11px] text-text-secondary font-medium mt-0.5">#QT-2023-012</p>
+</div>
+</div>
+<button class="text-gray-400 hover:text-text-main dark:hover:text-white p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined !text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between pl-2">
+<div>
+<p class="text-[11px] text-text-secondary mb-0.5">Yesterday</p>
+<p class="text-base font-bold text-text-main dark:text-white">$15,000.00</p>
+</div>
+<div class="px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-gray-500"></div>
+<span class="text-[11px] font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Draft</span>
+</div>
+</div>
+</div>
+<!-- Card 4: Expired -->
+<div class="group bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-transparent hover:border-primary/20 transition-all cursor-pointer relative overflow-hidden opacity-90">
+<div class="absolute top-0 left-0 w-1 h-full bg-red-400"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center p-1 border border-gray-100 dark:border-gray-700">
+<img alt="Wayne Logo" class="rounded-md" data-alt="Wayne Enterprises dark logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuABX7tcvirIKDJ0hd-VpP9TcqDh2Szenbm7TD3Qrr6SxO7l7gD32AwUn964F8r8smJ6ZdAn6kZ3MUDzi_4nJc7nf2SQguHFpj6T_qfznoPm2wGue84X6KWPEbdc2DyeMKp_YfnakiKp9d6hpoQQlXVPHrrHiRzt_m2ikZfIA1JJ1gpznZNQCWYWdUqpGb2BuNZ_50KerZ9mHpTgAB-qM074oCG9QIWAMMcd3NuB8Hly0cbf5uM4EGAC2kxI30J6tS9UQm8N6WGgt721"/>
+</div>
+<div>
+<h3 class="text-sm font-bold text-text-main dark:text-white leading-tight">Wayne Ent.</h3>
+<p class="text-[11px] text-text-secondary font-medium mt-0.5">#QT-2023-003</p>
+</div>
+</div>
+<button class="text-gray-400 hover:text-text-main dark:hover:text-white p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined !text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between pl-2">
+<div>
+<p class="text-[11px] text-text-secondary mb-0.5">Sep 15, 2023</p>
+<p class="text-base font-bold text-text-main dark:text-white">$8,500.00</p>
+</div>
+<div class="px-2.5 py-1 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+<span class="text-[11px] font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide">Expired</span>
+</div>
+</div>
+</div>
+<!-- Card 5: Sent -->
+<div class="group bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-transparent hover:border-primary/20 transition-all cursor-pointer relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+<div class="flex justify-between items-start mb-3 pl-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center p-1 border border-gray-100 dark:border-gray-700">
+<div class="text-text-secondary font-bold text-xs" data-alt="Cyberdyne text logo placeholder">CS</div>
+</div>
+<div>
+<h3 class="text-sm font-bold text-text-main dark:text-white leading-tight">Cyberdyne</h3>
+<p class="text-[11px] text-text-secondary font-medium mt-0.5">#QT-2023-018</p>
+</div>
+</div>
+<button class="text-gray-400 hover:text-text-main dark:hover:text-white p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined !text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between pl-2">
+<div>
+<p class="text-[11px] text-text-secondary mb-0.5">5 mins ago</p>
+<p class="text-base font-bold text-text-main dark:text-white">$42,000.00</p>
+</div>
+<div class="px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
+<span class="text-[11px] font-semibold text-primary dark:text-blue-400 uppercase tracking-wide">Sent</span>
+</div>
+</div>
+</div>
+<!-- Bottom spacer for scrolling above fab/nav -->
+<div class="h-6"></div>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed z-30 bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-primary/40 flex items-center justify-center transform transition-transform active:scale-95 hover:bg-primary-dark">
+<span class="material-symbols-outlined !text-[28px]">add</span>
+</button>
+<!-- Bottom Navigation -->
+<nav class="fixed bottom-0 z-40 w-full max-w-md bg-white/95 dark:bg-background-dark/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 bottom-nav-shadow">
+<div class="flex justify-around items-center h-[72px] pb-4 pt-2">
+<a class="flex flex-col items-center gap-1 text-text-secondary hover:text-primary transition-colors group px-4" href="#">
+<span class="material-symbols-outlined !text-[24px] group-hover:scale-110 transition-transform">grid_view</span>
+<span class="text-[10px] font-medium">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary group px-4" href="#">
+<div class="bg-blue-50 dark:bg-blue-900/20 px-4 py-1 rounded-full mb-0.5">
+<span class="material-symbols-outlined !text-[24px] group-hover:scale-110 transition-transform text-primary fill-current font-variation-settings-'FILL'-1">description</span>
+</div>
+<span class="text-[10px] font-bold">Quotes</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-text-secondary hover:text-primary transition-colors group px-4" href="#">
+<span class="material-symbols-outlined !text-[24px] group-hover:scale-110 transition-transform">receipt_long</span>
+<span class="text-[10px] font-medium">Invoices</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-text-secondary hover:text-primary transition-colors group px-4" href="#">
+<span class="material-symbols-outlined !text-[24px] group-hover:scale-110 transition-transform">group</span>
+<span class="text-[10px] font-medium">Clients</span>
+</a>
+</div>
+</nav>
+<!-- Action Sheet Simulation (Visual Only - Hidden by default but structured) -->
+<!-- To visualize actions as requested in context, we render a hidden-by-default visual example of what an active state would look like -->
+<!-- Not actively blocking view, just part of the DOM structure -->
+</div>
+</body></html>

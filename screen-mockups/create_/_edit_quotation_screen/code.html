@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>New Quotation</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2230",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar hide for cleaner mobile look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased text-gray-900 dark:text-gray-100">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden pb-24">
+<!-- Top Navigation -->
+<div class="sticky top-0 z-20 flex items-center bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 justify-between border-b border-gray-200 dark:border-gray-800">
+<button class="text-gray-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h2 class="text-gray-900 dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">New Quotation</h2>
+<button class="flex items-center justify-end px-2">
+<p class="text-primary text-base font-bold leading-normal tracking-wide shrink-0">Save</p>
+</button>
+</div>
+<!-- Main Form Content -->
+<div class="flex flex-col gap-6 p-4">
+<!-- Section: Header Info -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+<div class="flex items-center justify-between mb-4">
+<div class="flex flex-col">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quotation No.</span>
+<span class="text-xl font-bold text-gray-900 dark:text-white font-mono">#Q-2024-001</span>
+</div>
+<div class="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wide">
+                        Draft
+                    </div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<label class="flex flex-col gap-1.5">
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Issue Date</span>
+<div class="relative">
+<input class="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3" type="date" value="2023-10-24"/>
+</div>
+</label>
+<label class="flex flex-col gap-1.5">
+<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</span>
+<div class="relative">
+<input class="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3" type="date" value="2023-11-24"/>
+</div>
+</label>
+</div>
+</div>
+<!-- Section: Client -->
+<div class="flex flex-col gap-2">
+<h3 class="text-gray-900 dark:text-white text-base font-bold px-1">Client Details</h3>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-between group cursor-pointer hover:border-primary/50 transition-colors">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg" data-alt="Client Avatar Gradient">
+                            A
+                        </div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white">Acme Corporation</span>
+<span class="text-xs text-gray-500 dark:text-gray-400">bill@acme.com</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">edit</span>
+</div>
+</div>
+<!-- Section: Line Items -->
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between px-1">
+<h3 class="text-gray-900 dark:text-white text-base font-bold">Line Items</h3>
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400">2 Items</span>
+</div>
+<!-- Item Card 1 -->
+<div class="relative bg-surface-light dark:bg-surface-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden group">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h4 class="font-semibold text-gray-900 dark:text-white text-sm">UI/UX Design Service</h4>
+<p class="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">Mobile app interface design for iOS...</p>
+</div>
+<span class="font-bold text-gray-900 dark:text-white text-sm">$2,000.00</span>
+</div>
+<div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+<div class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+<span class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: 1</span>
+<span>x $2,000.00</span>
+</div>
+<div class="flex gap-2">
+<button class="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+<button class="p-1.5 text-gray-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Item Card 2 -->
+<div class="relative bg-surface-light dark:bg-surface-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden group">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h4 class="font-semibold text-gray-900 dark:text-white text-sm">Frontend Development</h4>
+<p class="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">React Native Implementation...</p>
+</div>
+<span class="font-bold text-gray-900 dark:text-white text-sm">$3,500.00</span>
+</div>
+<div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+<div class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+<span class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: 1</span>
+<span>x $3,500.00</span>
+</div>
+<div class="flex gap-2">
+<button class="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+<button class="p-1.5 text-gray-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Add Item Button -->
+<button class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 dark:bg-primary/10 py-3.5 text-primary hover:bg-primary/10 hover:border-primary transition-all">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+<span class="text-sm font-semibold">Add Line Item</span>
+</button>
+</div>
+<!-- Section: Totals -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-800 mt-2">
+<div class="space-y-3">
+<div class="flex justify-between text-sm">
+<span class="text-gray-500 dark:text-gray-400">Subtotal</span>
+<span class="font-medium text-gray-900 dark:text-white">$5,500.00</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-gray-500 dark:text-gray-400">Discount <span class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-1">5%</span></span>
+<span class="font-medium text-green-600 dark:text-green-400">-$275.00</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-gray-500 dark:text-gray-400">Tax <span class="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded ml-1">10%</span></span>
+<span class="font-medium text-gray-900 dark:text-white">$522.50</span>
+</div>
+<div class="h-px w-full bg-gray-200 dark:bg-gray-700 my-2"></div>
+<div class="flex justify-between items-end">
+<span class="text-base font-bold text-gray-900 dark:text-white">Grand Total</span>
+<div class="flex flex-col items-end">
+<span class="text-xl font-bold text-primary">$5,747.50</span>
+<span class="text-xs text-gray-400">USD</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section: Additional Notes -->
+<div class="space-y-4 pt-2">
+<div class="relative">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1" for="notes">Notes</label>
+<textarea class="block w-full rounded-xl border-gray-200 dark:border-gray-700 bg-surface-light dark:bg-surface-dark text-gray-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary text-sm p-3 resize-none" id="notes" placeholder="Add any notes for the client..." rows="3"></textarea>
+</div>
+<div class="relative">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1" for="terms">Terms &amp; Conditions</label>
+<textarea class="block w-full rounded-xl border-gray-200 dark:border-gray-700 bg-surface-light dark:bg-surface-dark text-gray-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary text-sm p-3 resize-none" id="terms" placeholder="Payment terms, delivery details..." rows="3"></textarea>
+</div>
+</div>
+</div>
+<!-- Sticky Footer Action Bar -->
+<div class="fixed bottom-0 left-0 right-0 z-30 bg-surface-light/80 dark:bg-surface-dark/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+<div class="flex gap-3 max-w-lg mx-auto">
+<button class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+                    Preview
+                </button>
+<button class="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
+<span class="material-symbols-outlined text-[20px]">send</span>
+                    Send Quotation
+                </button>
+</div>
+</div>
+</div>
+</body></html>

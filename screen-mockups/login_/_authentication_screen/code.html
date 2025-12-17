@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login - Invoice Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-white antialiased">
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden max-w-md mx-auto bg-background-light dark:bg-background-dark shadow-xl">
+<!-- Header / Logo Area -->
+<div class="flex flex-col items-center justify-center pt-12 pb-6 px-4">
+<div class="w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-xl flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-primary text-4xl">inventory_2</span>
+</div>
+</div>
+<!-- Headline Text -->
+<div class="px-6 text-center">
+<h1 class="text-slate-900 dark:text-white tracking-tight text-3xl font-bold leading-tight pb-2">Welcome Back</h1>
+<p class="text-slate-500 dark:text-slate-400 text-base font-normal leading-normal">Sign in to manage your invoices and quotes.</p>
+</div>
+<!-- Login Form -->
+<div class="flex flex-col gap-5 px-6 py-8">
+<!-- Email Field -->
+<label class="flex flex-col w-full">
+<p class="text-slate-900 dark:text-slate-200 text-sm font-medium leading-normal pb-2">Email Address</p>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">mail</span>
+<input class="form-input w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 focus:border-primary h-12 pl-11 pr-4 placeholder:text-slate-400 text-base transition-all duration-200" placeholder="name@company.com" type="email"/>
+</div>
+</label>
+<!-- Password Field -->
+<label class="flex flex-col w-full">
+<div class="flex justify-between items-center pb-2">
+<p class="text-slate-900 dark:text-slate-200 text-sm font-medium leading-normal">Password</p>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
+<input class="form-input w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 focus:border-primary h-12 pl-11 pr-12 placeholder:text-slate-400 text-base transition-all duration-200" placeholder="••••••••" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1" type="button">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+</div>
+<div class="flex justify-end pt-2">
+<a class="text-sm font-medium text-primary hover:text-blue-600 dark:hover:text-blue-400 transition-colors" href="#">Forgot Password?</a>
+</div>
+</label>
+<!-- Login Actions -->
+<div class="flex flex-col gap-4 mt-2">
+<button class="flex w-full items-center justify-center rounded-lg bg-primary py-3.5 px-4 text-base font-semibold text-white shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all">
+                    Log In
+                </button>
+<div class="relative flex py-1 items-center">
+<div class="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+<span class="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-medium tracking-wider">Or</span>
+<div class="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined text-xl">face</span>
+                        Face ID
+                    </button>
+<button class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined text-xl">fingerprint</span>
+                        Touch ID
+                    </button>
+</div>
+</div>
+</div>
+<!-- 2FA Section (Demo of Conditional State) -->
+<div class="px-6 pb-8">
+<div class="rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+<div class="flex items-center gap-3 mb-4">
+<div class="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-600 dark:text-green-400">
+<span class="material-symbols-outlined text-xl">security</span>
+</div>
+<div>
+<h3 class="text-sm font-semibold text-slate-900 dark:text-white">Two-Factor Authentication</h3>
+<p class="text-xs text-slate-500 dark:text-slate-400">Enter the code from your app</p>
+</div>
+</div>
+<div class="flex justify-between gap-2 mb-4">
+<input class="w-10 h-12 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 focus:border-primary focus:ring-primary focus:outline-none dark:text-white" maxlength="1" type="text" value=""/>
+<input class="w-10 h-12 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 focus:border-primary focus:ring-primary focus:outline-none dark:text-white" maxlength="1" type="text" value=""/>
+<input class="w-10 h-12 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 focus:border-primary focus:ring-primary focus:outline-none dark:text-white" maxlength="1" type="text" value=""/>
+<input class="w-10 h-12 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 focus:border-primary focus:ring-primary focus:outline-none dark:text-white" maxlength="1" type="text" value=""/>
+<input class="w-10 h-12 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 focus:border-primary focus:ring-primary focus:outline-none dark:text-white" maxlength="1" type="text" value=""/>
+<input class="w-10 h-12 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 focus:border-primary focus:ring-primary focus:outline-none dark:text-white" maxlength="1" type="text" value=""/>
+</div>
+<button class="w-full rounded-lg bg-slate-900 dark:bg-slate-600 text-white py-2.5 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors">
+                    Verify Code
+                </button>
+</div>
+</div>
+<!-- Footer -->
+<div class="mt-auto py-6 text-center border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50">
+<p class="text-sm text-slate-500 dark:text-slate-400">
+                Don't have an account? 
+                <a class="font-medium text-primary hover:underline" href="#">Sign up</a>
+</p>
+</div>
+<div class="h-5"></div>
+</div>
+</body></html>
