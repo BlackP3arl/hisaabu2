@@ -505,6 +505,7 @@ export default function InvoiceForm() {
           type="invoice"
           data={{
             ...formData,
+            id: id ? parseInt(id) : null,
             number,
             amount: formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
           }}

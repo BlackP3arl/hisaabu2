@@ -463,6 +463,7 @@ export default function QuotationForm() {
           type="quotation"
           data={{
             ...formData,
+            id: id ? parseInt(id) : null,
             number,
             status: quotation?.status || 'draft',
             amount: formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
