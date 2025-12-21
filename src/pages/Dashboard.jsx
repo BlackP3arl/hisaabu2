@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useData } from '../context/DataContext'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { formatCurrency, getCurrencySymbol } from '../utils/currency'
 
 export default function Dashboard() {
   const { dashboardStats, loading, fetchDashboardStats } = useData()
@@ -17,10 +18,14 @@ export default function Dashboard() {
     paidInvoices: 0,
     unpaidInvoices: 0,
     overdueInvoices: 0,
+    totalOutstandingByCurrency: [],
+    paidInvoicesByCurrency: [],
+    overdueInvoicesByCurrency: [],
     recentActivity: []
   }
 
   const recentActivity = stats.recentActivity || []
+  const [expandedCurrency, setExpandedCurrency] = useState(null)
 
   const quickActions = (
     <div className="flex items-center gap-3">
@@ -53,17 +58,44 @@ export default function Dashboard() {
             </div>
             <div className="relative z-10">
               <p className="text-white/80 text-sm font-medium mb-1">Total Outstanding</p>
-              <h3 className="text-white text-2xl lg:text-3xl font-bold tracking-tight">
-                {loading.dashboard ? (
-                  <span className="inline-block w-24 h-8 bg-white/20 rounded animate-pulse"></span>
-                ) : (
-                  `$${stats.totalOutstanding?.toLocaleString() || '0'}.00`
+              {loading.dashboard ? (
+                <span className="inline-block w-24 h-8 bg-white/20 rounded animate-pulse"></span>
+              ) : stats.totalOutstandingByCurrency && stats.totalOutstandingByCurrency.length > 0 ? (
+                <div className="space-y-2">
+                  {stats.totalOutstandingByCurrency.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <h3 className="text-white text-xl lg:text-2xl font-bold tracking-tight">
+                        {formatCurrency(item.amount, item.currency)}
+                      </h3>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <h3 className="text-white text-2xl lg:text-3xl font-bold tracking-tight">
+                  {formatCurrency(stats.totalOutstanding || 0, 'USD')}
+                </h3>
+              )}
+            </div>
+            {stats.totalOutstandingByCurrency && stats.totalOutstandingByCurrency.length > 1 && (
+              <div className="relative z-10 mt-2">
+                <button
+                  onClick={() => setExpandedCurrency(expandedCurrency === 'outstanding' ? null : 'outstanding')}
+                  className="bg-white/20 backdrop-blur-md text-white text-xs px-2 py-1 rounded-full font-medium hover:bg-white/30 transition-colors"
+                >
+                  {expandedCurrency === 'outstanding' ? 'Hide' : 'Show'} breakdown
+                </button>
+                {expandedCurrency === 'outstanding' && (
+                  <div className="mt-2 space-y-1">
+                    {stats.totalOutstandingByCurrency.map((item, idx) => (
+                      <div key={idx} className="text-white/90 text-xs flex justify-between">
+                        <span>{item.currency}:</span>
+                        <span className="font-semibold">{formatCurrency(item.amount, item.currency)}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </h3>
-            </div>
-            <div className="relative z-10 mt-4 lg:mt-6 flex items-center gap-2">
-              <span className="bg-white/20 backdrop-blur-md text-white text-xs px-2 py-1 rounded-full font-medium">+12% vs last month</span>
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Total Quotations */}
@@ -122,18 +154,36 @@ export default function Dashboard() {
               <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-full">
                 <span className="material-symbols-outlined text-[20px] block">check_circle</span>
               </span>
-              <div>
+              <div className="flex-1">
                 <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Paid</p>
                 <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.paidInvoices || 0}</p>
+                {stats.paidInvoicesByCurrency && stats.paidInvoicesByCurrency.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {stats.paidInvoicesByCurrency.map((item, idx) => (
+                      <p key={idx} className="text-slate-500 dark:text-slate-400 text-[10px]">
+                        {item.currency}: {item.count}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex-1 flex items-center gap-3 bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
               <span className="text-red-600 bg-red-50 dark:bg-red-900/20 p-2 rounded-full">
                 <span className="material-symbols-outlined text-[20px] block">error</span>
               </span>
-              <div>
+              <div className="flex-1">
                 <p className="text-red-700 dark:text-red-400 text-xs font-medium uppercase tracking-wide">Overdue</p>
                 <p className="text-red-900 dark:text-red-200 text-xl font-bold">{stats.overdueInvoices || 0}</p>
+                {stats.overdueInvoicesByCurrency && stats.overdueInvoicesByCurrency.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {stats.overdueInvoicesByCurrency.map((item, idx) => (
+                      <p key={idx} className="text-red-500 dark:text-red-400 text-[10px]">
+                        {item.currency}: {item.count}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -146,7 +196,7 @@ export default function Dashboard() {
               <span className="material-symbols-outlined text-[20px] block">check_circle</span>
             </span>
             <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Paid</p>
-            <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.paid}</p>
+            <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.paidInvoices || 0}</p>
           </div>
           <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
             <span className="text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded-full mb-2">
@@ -218,7 +268,9 @@ export default function Dashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-slate-900 dark:text-white font-medium truncate">{activity.title}</p>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs truncate">{activity.client} • {activity.amount || activity.project || ''}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs truncate">
+                    {activity.client} • {activity.amount ? formatCurrency(activity.amount, activity.currency || 'USD') : activity.project || ''}
+                  </p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-slate-400 dark:text-slate-500 text-xs">{activity.time}</p>

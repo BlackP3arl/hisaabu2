@@ -13,6 +13,8 @@ import { generateQuotationNumber, generateInvoiceNumber } from '../utils/numberi
 import { query } from '../config/database.js';
 import { successResponse, errorResponse, toCamelCase, toCamelCaseArray } from '../utils/response.js';
 import { validateCurrencyCode } from '../utils/currency.js';
+import { sendEmail, generateQuotationEmailTemplate } from '../utils/emailService.js';
+import { createShareLink } from '../queries/shareLinks.js';
 
 /**
  * Get list of quotations
@@ -182,7 +184,7 @@ export const create = async (req, res) => {
     }
 
     // Validate status
-    const validStatuses = ['draft', 'sent', 'accepted', 'expired'];
+    const validStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
     if (status && !validStatuses.includes(status)) {
       return errorResponse(
         res,
@@ -395,7 +397,7 @@ export const update = async (req, res) => {
     }
 
     if (status !== undefined) {
-      const validStatuses = ['draft', 'sent', 'accepted', 'expired'];
+      const validStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
       if (!validStatuses.includes(status)) {
         return errorResponse(
           res,
@@ -805,6 +807,293 @@ export const convertToInvoice = async (req, res) => {
     );
   } catch (error) {
     console.error('Convert quotation error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Send quotation email to client
+ * POST /api/v1/quotations/:id/send-email
+ */
+export const sendQuotationEmail = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const quotationId = parseInt(req.params.id);
+
+    if (isNaN(quotationId)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid quotation ID',
+        null,
+        400
+      );
+    }
+
+    // Get quotation with client info
+    const quotation = await getQuotationById(userId, quotationId);
+    if (!quotation) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    // Check if client has email
+    if (!quotation.client_email) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Client email address is required to send quotation',
+        { email: ['Client must have an email address'] },
+        422
+      );
+    }
+
+    // Get company settings
+    const settings = await getSettings(userId);
+    if (!settings) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Company settings not found',
+        null,
+        404
+      );
+    }
+
+    // Create or get existing share link
+    let shareLink;
+    const existingLink = await query(
+      'SELECT * FROM share_links WHERE document_type = $1 AND document_id = $2 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+      ['quotation', quotationId]
+    );
+
+    if (existingLink.rows.length > 0) {
+      shareLink = existingLink.rows[0];
+    } else {
+      // Create new share link
+      shareLink = await createShareLink(userId, {
+        documentType: 'quotation',
+        documentId: quotationId,
+        password: null,
+        expiresAt: quotation.expiry_date || null,
+      });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const shareUrl = `${frontendUrl}/share/quotation/${shareLink.token}`;
+    const acceptUrl = `${frontendUrl}/api/v1/public/quotations/${shareLink.token}/accept`;
+    const rejectUrl = `${frontendUrl}/api/v1/public/quotations/${shareLink.token}/reject`;
+
+    // Generate email HTML
+    const emailHtml = generateQuotationEmailTemplate({
+      quotation: toCamelCase(quotation),
+      company: settings,
+      client: {
+        name: quotation.client_name,
+        email: quotation.client_email,
+      },
+      shareUrl,
+      acceptUrl,
+      rejectUrl,
+    });
+
+    // Send email
+    await sendEmail({
+      to: quotation.client_email,
+      subject: `Quotation ${quotation.number} from ${settings.companyName || settings.name || 'Company'}`,
+      html: emailHtml,
+    });
+
+    // Update quotation status to 'sent' if not already
+    if (quotation.status !== 'sent') {
+      await updateQuotation(userId, quotationId, {
+        status: 'sent',
+      });
+    }
+
+    return successResponse(
+      res,
+      {
+        message: 'Quotation email sent successfully',
+        shareLink: {
+          token: shareLink.token,
+          url: shareUrl,
+        },
+      },
+      'Quotation email sent successfully',
+      200
+    );
+  } catch (error) {
+    console.error('Send quotation email error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Accept quotation (public endpoint - no auth required)
+ * POST /api/v1/public/quotations/:token/accept
+ */
+export const acceptQuotation = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Get share link
+    const shareLinkResult = await query(
+      'SELECT * FROM share_links WHERE token = $1 AND document_type = $2 AND is_active = true',
+      [token, 'quotation']
+    );
+
+    if (shareLinkResult.rows.length === 0) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Share link not found or inactive',
+        null,
+        404
+      );
+    }
+
+    const shareLink = shareLinkResult.rows[0];
+
+    // Check if expired
+    if (shareLink.expires_at && new Date(shareLink.expires_at) < new Date()) {
+      return errorResponse(
+        res,
+        'GONE',
+        'Share link has expired',
+        null,
+        410
+      );
+    }
+
+    // Get quotation
+    const quotation = await query(
+      'SELECT * FROM quotations WHERE id = $1',
+      [shareLink.document_id]
+    );
+
+    if (quotation.rows.length === 0) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    const quotationData = quotation.rows[0];
+
+    // Update quotation status to 'accepted'
+    await query(
+      'UPDATE quotations SET status = $1, updated_at = NOW() WHERE id = $2',
+      ['accepted', shareLink.document_id]
+    );
+
+    // Get user ID for response
+    const userId = quotationData.user_id;
+
+    // Get updated quotation
+    const updatedQuotation = await getQuotationById(userId, shareLink.document_id);
+
+    return successResponse(
+      res,
+      {
+        quotation: toCamelCase(updatedQuotation),
+        message: 'Quotation accepted successfully',
+      },
+      'Quotation accepted successfully',
+      200
+    );
+  } catch (error) {
+    console.error('Accept quotation error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Reject quotation (public endpoint - no auth required)
+ * POST /api/v1/public/quotations/:token/reject
+ */
+export const rejectQuotation = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Get share link
+    const shareLinkResult = await query(
+      'SELECT * FROM share_links WHERE token = $1 AND document_type = $2 AND is_active = true',
+      [token, 'quotation']
+    );
+
+    if (shareLinkResult.rows.length === 0) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Share link not found or inactive',
+        null,
+        404
+      );
+    }
+
+    const shareLink = shareLinkResult.rows[0];
+
+    // Check if expired
+    if (shareLink.expires_at && new Date(shareLink.expires_at) < new Date()) {
+      return errorResponse(
+        res,
+        'GONE',
+        'Share link has expired',
+        null,
+        410
+      );
+    }
+
+    // Get quotation
+    const quotation = await query(
+      'SELECT * FROM quotations WHERE id = $1',
+      [shareLink.document_id]
+    );
+
+    if (quotation.rows.length === 0) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    const quotationData = quotation.rows[0];
+
+    // Update quotation status to 'rejected'
+    await query(
+      'UPDATE quotations SET status = $1, updated_at = NOW() WHERE id = $2',
+      ['rejected', shareLink.document_id]
+    );
+
+    // Get user ID for response
+    const userId = quotationData.user_id;
+
+    // Get updated quotation
+    const updatedQuotation = await getQuotationById(userId, shareLink.document_id);
+
+    return successResponse(
+      res,
+      {
+        quotation: toCamelCase(updatedQuotation),
+        message: 'Quotation rejected',
+      },
+      'Quotation rejected',
+      200
+    );
+  } catch (error) {
+    console.error('Reject quotation error:', error);
     throw error;
   }
 };

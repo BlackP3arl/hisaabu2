@@ -24,7 +24,6 @@ const createClientValidation = [
   body('email')
     .trim()
     .isEmail()
-    .normalizeEmail()
     .withMessage('Valid email is required'),
   body('status')
     .optional()

@@ -7,6 +7,7 @@ import {
   update,
   remove,
   convertToInvoice,
+  sendQuotationEmail,
 } from '../controllers/quotationController.js';
 import { authenticate } from '../middleware/auth.js';
 import { handleValidationErrors } from '../middleware/validation.js';
@@ -38,8 +39,8 @@ const createQuotationValidation = [
     }),
   body('status')
     .optional()
-    .isIn(['draft', 'sent', 'accepted', 'expired'])
-    .withMessage('Status must be one of: draft, sent, accepted, expired'),
+    .isIn(['draft', 'sent', 'accepted', 'rejected', 'expired'])
+    .withMessage('Status must be one of: draft, sent, accepted, rejected, expired'),
   body('items')
     .isArray({ min: 1 })
     .withMessage('At least one line item is required'),
@@ -90,8 +91,8 @@ const updateQuotationValidation = [
     }),
   body('status')
     .optional()
-    .isIn(['draft', 'sent', 'accepted', 'expired'])
-    .withMessage('Status must be one of: draft, sent, accepted, expired'),
+    .isIn(['draft', 'sent', 'accepted', 'rejected', 'expired'])
+    .withMessage('Status must be one of: draft, sent, accepted, rejected, expired'),
   body('items')
     .optional()
     .isArray({ min: 1 })
@@ -131,7 +132,7 @@ const convertValidation = [
 const queryValidation = [
   queryValidator('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   queryValidator('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
-  queryValidator('status').optional().isIn(['all', 'draft', 'sent', 'accepted', 'expired']).withMessage('Invalid status'),
+  queryValidator('status').optional().isIn(['all', 'draft', 'sent', 'accepted', 'rejected', 'expired']).withMessage('Invalid status'),
   queryValidator('clientId').optional().isInt().withMessage('Client ID must be an integer'),
   queryValidator('dateFrom').optional().isISO8601().withMessage('Valid date format required'),
   queryValidator('dateTo').optional().isISO8601().withMessage('Valid date format required'),
@@ -146,6 +147,7 @@ router.post('/', createQuotationValidation, handleValidationErrors, create);
 router.put('/:id', updateQuotationValidation, handleValidationErrors, update);
 router.delete('/:id', remove);
 router.post('/:id/convert', convertValidation, handleValidationErrors, convertToInvoice);
+router.post('/:id/send-email', sendQuotationEmail);
 
 export default router;
 

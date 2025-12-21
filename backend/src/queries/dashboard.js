@@ -13,9 +13,12 @@ export const getDashboardStats = async (userId) => {
     quotationsCount,
     invoicesCount,
     outstandingResult,
+    outstandingByCurrencyResult,
     paidInvoicesCount,
+    paidInvoicesByCurrencyResult,
     unpaidInvoicesCount,
     overdueInvoicesCount,
+    overdueInvoicesByCurrencyResult,
     recentActivity,
   ] = await Promise.all([
     // Total quotations
@@ -28,14 +31,32 @@ export const getDashboardStats = async (userId) => {
       'SELECT COUNT(*) as count FROM invoices WHERE user_id = $1',
       [userId]
     ),
-    // Total outstanding
+    // Total outstanding (sum of all currencies)
     query(
       'SELECT COALESCE(SUM(balance_due), 0) as total FROM invoices WHERE user_id = $1',
       [userId]
     ),
-    // Paid invoices
+    // Total outstanding by currency
+    query(
+      `SELECT currency, COALESCE(SUM(balance_due), 0) as total 
+       FROM invoices 
+       WHERE user_id = $1 
+       GROUP BY currency
+       ORDER BY currency`,
+      [userId]
+    ),
+    // Paid invoices (total count)
     query(
       "SELECT COUNT(*) as count FROM invoices WHERE user_id = $1 AND status = 'paid'",
+      [userId]
+    ),
+    // Paid invoices by currency
+    query(
+      `SELECT currency, COUNT(*) as count 
+       FROM invoices 
+       WHERE user_id = $1 AND status = 'paid'
+       GROUP BY currency
+       ORDER BY currency`,
       [userId]
     ),
     // Unpaid invoices (sent or draft)
@@ -43,7 +64,7 @@ export const getDashboardStats = async (userId) => {
       "SELECT COUNT(*) as count FROM invoices WHERE user_id = $1 AND status IN ('sent', 'draft')",
       [userId]
     ),
-    // Overdue invoices
+    // Overdue invoices (total count)
     query(
       `SELECT COUNT(*) as count 
        FROM invoices 
@@ -53,7 +74,19 @@ export const getDashboardStats = async (userId) => {
          AND balance_due > 0`,
       [userId]
     ),
-    // Recent activity (last 20 items)
+    // Overdue invoices by currency
+    query(
+      `SELECT currency, COUNT(*) as count 
+       FROM invoices 
+       WHERE user_id = $1 
+         AND status = 'overdue' 
+         AND due_date < CURRENT_DATE 
+         AND balance_due > 0
+       GROUP BY currency
+       ORDER BY currency`,
+      [userId]
+    ),
+    // Recent activity (last 20 items) - include currency
     query(
       `(
         SELECT 
@@ -61,6 +94,7 @@ export const getDashboardStats = async (userId) => {
           'Invoice #' || i.number || ' Paid' as title,
           c.name as client,
           p.amount,
+          p.currency,
           p.created_at as timestamp
         FROM payments p
         INNER JOIN invoices i ON p.invoice_id = i.id
@@ -76,6 +110,7 @@ export const getDashboardStats = async (userId) => {
           'Invoice #' || number || ' Created' as title,
           c.name as client,
           total_amount as amount,
+          currency,
           created_at as timestamp
         FROM invoices i
         INNER JOIN clients c ON i.client_id = c.id
@@ -90,6 +125,7 @@ export const getDashboardStats = async (userId) => {
           'Quotation #' || number || ' Created' as title,
           c.name as client,
           total_amount as amount,
+          currency,
           created_at as timestamp
         FROM quotations q
         INNER JOIN clients c ON q.client_id = c.id
@@ -110,22 +146,81 @@ export const getDashboardStats = async (userId) => {
   const unpaidInvoices = parseInt(unpaidInvoicesCount.rows[0].count);
   const overdueInvoices = parseInt(overdueInvoicesCount.rows[0].count);
 
-  // Transform recent activity
-  const recentActivityList = recentActivity.rows.map(activity => ({
-    type: activity.type,
-    title: activity.title,
-    client: activity.client,
-    amount: parseFloat(activity.amount || 0),
-    timestamp: activity.timestamp.toISOString(),
+  // Transform outstanding by currency
+  const totalOutstandingByCurrency = outstandingByCurrencyResult.rows.map(row => ({
+    currency: row.currency,
+    amount: parseFloat(row.total || 0),
   }));
+
+  // Transform paid invoices by currency
+  const paidInvoicesByCurrency = paidInvoicesByCurrencyResult.rows.map(row => ({
+    currency: row.currency,
+    count: parseInt(row.count || 0),
+  }));
+
+  // Transform overdue invoices by currency
+  const overdueInvoicesByCurrency = overdueInvoicesByCurrencyResult.rows.map(row => ({
+    currency: row.currency,
+    count: parseInt(row.count || 0),
+  }));
+
+  // Transform recent activity - map types and format time
+  const recentActivityList = recentActivity.rows.map(activity => {
+    // Map activity types: 'invoice' -> 'sent', 'quotation' -> 'sent', keep 'payment'
+    let activityType = activity.type;
+    if (activityType === 'invoice' || activityType === 'quotation') {
+      activityType = 'sent';
+    }
+
+    // Format timestamp to relative time string
+    const timestamp = activity.timestamp instanceof Date 
+      ? activity.timestamp 
+      : new Date(activity.timestamp);
+    const now = new Date();
+    const diffMs = now - timestamp;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    let timeString = '';
+    if (diffMins < 1) {
+      timeString = 'Just now';
+    } else if (diffMins < 60) {
+      timeString = `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
+    } else if (diffHours < 24) {
+      timeString = `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    } else if (diffDays < 30) {
+      timeString = `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    } else {
+      // Format as date for older items
+      timeString = timestamp.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: timestamp.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      });
+    }
+
+    return {
+      type: activityType,
+      title: activity.title,
+      client: activity.client,
+      amount: parseFloat(activity.amount || 0),
+      currency: activity.currency || 'USD',
+      time: timeString,
+      timestamp: timestamp.toISOString(),
+    };
+  });
 
   return {
     totalQuotations,
     totalInvoices,
     totalOutstanding,
+    totalOutstandingByCurrency,
     paidInvoices,
+    paidInvoicesByCurrency,
     unpaidInvoices,
     overdueInvoices,
+    overdueInvoicesByCurrency,
     recentActivity: recentActivityList,
   };
 };

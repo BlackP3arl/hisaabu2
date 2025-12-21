@@ -80,6 +80,35 @@ export default function SecureShare() {
     }
   }
 
+  const handleAcceptQuotation = async () => {
+    try {
+      const { data } = await apiClient.post(`/public/quotations/${token}/accept`)
+      if (data.success) {
+        setDocument({ ...document, status: 'accepted' })
+        alert('Quotation accepted successfully!')
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to accept quotation')
+    }
+  }
+
+  const handleRejectQuotation = async () => {
+    if (!window.confirm('Are you sure you want to reject this quotation?')) {
+      return
+    }
+    try {
+      const { data } = await apiClient.post(`/public/quotations/${token}/reject`)
+      if (data.success) {
+        setDocument({ ...document, status: 'rejected' })
+        alert('Quotation rejected.')
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to reject quotation')
+    }
+  }
+
   const handleDownloadPdf = async () => {
     try {
       const endpoint = document?.documentType === 'quotation' 
@@ -106,6 +135,7 @@ export default function SecureShare() {
     const styles = {
       paid: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
       accepted: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+      rejected: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400',
       overdue: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400',
       expired: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400',
       draft: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
@@ -379,13 +409,41 @@ export default function SecureShare() {
                 <span className="material-symbols-outlined text-[20px]">download</span>
                 Download PDF
               </button>
-              <button 
-                onClick={handleAcknowledge}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                {docType === 'quotation' ? 'Accept Quotation' : 'Acknowledge Receipt'}
-              </button>
+              {docType === 'quotation' && document.status !== 'accepted' && document.status !== 'rejected' ? (
+                <>
+                  <button 
+                    onClick={handleAcceptQuotation}
+                    disabled={document.status === 'accepted' || document.status === 'rejected'}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-white font-semibold shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                    Accept Quotation
+                  </button>
+                  <button 
+                    onClick={handleRejectQuotation}
+                    disabled={document.status === 'accepted' || document.status === 'rejected'}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 py-3.5 text-white font-semibold shadow-lg shadow-red-500/25 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">cancel</span>
+                    Reject Quotation
+                  </button>
+                </>
+              ) : docType === 'quotation' ? (
+                <div className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 px-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+                  <span className="material-symbols-outlined text-[20px]">
+                    {document.status === 'accepted' ? 'check_circle' : 'cancel'}
+                  </span>
+                  Quotation {document.status === 'accepted' ? 'Accepted' : 'Rejected'}
+                </div>
+              ) : (
+                <button 
+                  onClick={handleAcknowledge}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                  Acknowledge Receipt
+                </button>
+              )}
             </div>
           </div>
         </div>

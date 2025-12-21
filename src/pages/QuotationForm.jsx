@@ -6,6 +6,7 @@ import ItemSelector from '../components/ItemSelector'
 import ClientSelector from '../components/ClientSelector'
 import PrintPreview from '../components/PrintPreview'
 import { getCurrencySymbol, getSupportedCurrencies } from '../utils/currency'
+import apiClient from '../api/client'
 
 export default function QuotationForm() {
   const { id } = useParams()
@@ -21,7 +22,7 @@ export default function QuotationForm() {
   const [formData, setFormData] = useState({
     clientId: '',
     issueDate: new Date().toISOString().split('T')[0],
-    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     items: [],
     notes: '',
     terms: '',
@@ -40,12 +41,17 @@ export default function QuotationForm() {
     }
   }, [fetchCategories, fetchClients, fetchCompanySettings, companySettings])
 
-  // Set default currency from company settings
+  // Set default currency from company settings and default exchange rate
   useEffect(() => {
     if (companySettings && !formData.currency && !id) {
+      const defaultCurrency = companySettings.currency || 'MVR'
+      const baseCurrency = companySettings.baseCurrency || 'USD'
+      const needsExchangeRate = defaultCurrency !== baseCurrency
+      
       setFormData(prev => ({
         ...prev,
-        currency: companySettings.currency || 'MVR',
+        currency: defaultCurrency,
+        exchangeRate: needsExchangeRate && !prev.exchangeRate ? 15.42 : prev.exchangeRate,
       }))
     }
   }, [companySettings, id])
@@ -181,7 +187,7 @@ export default function QuotationForm() {
     return colors[index]
   }
 
-  const handleSave = async () => {
+  const handleSave = async (sendQuotation = false) => {
     setFormError(null)
     if (!formData.clientId) {
       setFormError('Please select a client')
@@ -207,8 +213,8 @@ export default function QuotationForm() {
 
     // Validate exchange rate if currency is not base currency
     if (formData.currency !== baseCurrency) {
-      if (!formData.exchangeRate || formData.exchangeRate <= 0) {
-        setFormError('Exchange rate is required when currency differs from base currency')
+      if (!formData.exchangeRate || formData.exchangeRate < 0.001) {
+        setFormError('Exchange rate is required and must be at least 0.001 when currency differs from base currency')
         return
       }
     }
@@ -231,17 +237,33 @@ export default function QuotationForm() {
       })),
       notes: formData.notes,
       terms: formData.terms,
-      status: formData.status,
+      status: sendQuotation ? 'sent' : formData.status, // Set to 'sent' when sending quotation
       currency: formData.currency,
       exchangeRate: formData.currency !== baseCurrency ? formData.exchangeRate : null,
     }
 
     try {
+      let quotationId
       if (id) {
         await updateQuotation(parseInt(id), data)
+        quotationId = parseInt(id)
       } else {
-        await createQuotation(data)
+        const result = await createQuotation(data)
+        quotationId = result.id
       }
+
+      // If sending quotation, send email
+      if (sendQuotation && quotationId) {
+        try {
+          await apiClient.post(`/quotations/${quotationId}/send-email`)
+          alert('Quotation sent successfully!')
+        } catch (emailErr) {
+          console.error('Failed to send email:', emailErr)
+          // Still navigate even if email fails
+          alert('Quotation saved but email could not be sent. Please try sending it manually.')
+        }
+      }
+
       navigate('/quotations')
     } catch (err) {
       setFormError(err.response?.data?.error?.message || 'Failed to save quotation')
@@ -282,14 +304,14 @@ export default function QuotationForm() {
               PDF
             </button>
             <button 
-              onClick={handleSave} 
+              onClick={() => handleSave(true)} 
               disabled={submitting}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Saving...
+                  Sending...
                 </>
               ) : (
                 <>
@@ -375,7 +397,9 @@ export default function QuotationForm() {
                           setFormData({ 
                             ...formData, 
                             currency: newCurrency,
-                            exchangeRate: newCurrency !== baseCurrency ? formData.exchangeRate : null
+                            exchangeRate: newCurrency !== baseCurrency 
+                              ? (formData.exchangeRate || 15.42) 
+                              : null
                           })
                         }}
                         required
@@ -391,16 +415,16 @@ export default function QuotationForm() {
                     {showExchangeRate && (
                       <label className="flex flex-col gap-1.5">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Exchange Rate (1 {formData.currency} = ? {baseCurrency})
+                          Exchange Rate (1 {baseCurrency} = ? {formData.currency})
                         </span>
                         <input
                           className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                           type="number"
-                          step="0.0001"
-                          min="0.0001"
+                          step="0.001"
+                          min="0.001"
                           value={formData.exchangeRate || ''}
                           onChange={(e) => setFormData({ ...formData, exchangeRate: parseFloat(e.target.value) || null })}
-                          placeholder="0.0000"
+                          placeholder="0.000"
                           required
                         />
                         <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -644,17 +668,14 @@ export default function QuotationForm() {
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
                     <button 
-                      onClick={() => {
-                        setFormData({ ...formData, status: 'sent' })
-                        handleSave()
-                      }}
+                      onClick={() => handleSave(true)}
                       disabled={submitting}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <>
                           <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                          Saving...
+                          Sending...
                         </>
                       ) : (
                         <>
@@ -702,17 +723,14 @@ export default function QuotationForm() {
               Preview
             </button>
             <button 
-              onClick={() => {
-                setFormData({ ...formData, status: 'sent' })
-                handleSave()
-              }}
+              onClick={() => handleSave(true)}
               disabled={submitting}
               className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Saving...
+                  Sending...
                 </>
               ) : (
                 <>

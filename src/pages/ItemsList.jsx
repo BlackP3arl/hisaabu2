@@ -148,6 +148,7 @@ export default function ItemsList() {
                     <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Item</th>
                     <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Description</th>
                     <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Category</th>
+                    <th className="text-center px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">UOM</th>
                     <th className="text-right px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Rate</th>
                     <th className="text-center px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                     <th className="text-right px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
@@ -188,9 +189,13 @@ export default function ItemsList() {
                           {item.categoryName || 'Uncategorized'}
                         </span>
                       </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                          {item.uomCode || 'PC'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-bold text-slate-900 dark:text-white">${item.rate?.toLocaleString() || '0'}</span>
-                        <span className="text-xs text-slate-400 ml-1">/{item.uomCode || 'PC'}</span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center">
@@ -313,22 +318,26 @@ export default function ItemsList() {
                   </Link>
                 </div>
                 <div className="mt-4 pt-3 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
-                  <span 
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
-                    style={{ 
-                      backgroundColor: `${getCategoryColor(item.categoryId)}15`,
-                      color: getCategoryColor(item.categoryId)
-                    }}
-                  >
+                  <div className="flex items-center gap-2">
                     <span 
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: getCategoryColor(item.categoryId) }}
-                    ></span>
-                    {item.categoryName || 'Uncategorized'}
-                  </span>
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
+                      style={{ 
+                        backgroundColor: `${getCategoryColor(item.categoryId)}15`,
+                        color: getCategoryColor(item.categoryId)
+                      }}
+                    >
+                      <span 
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: getCategoryColor(item.categoryId) }}
+                      ></span>
+                      {item.categoryName || 'Uncategorized'}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                      {item.uomCode || 'PC'}
+                    </span>
+                  </div>
                   <div className="flex flex-col items-end">
                     <span className="text-lg font-bold text-slate-900 dark:text-white">${item.rate || '0'}</span>
-                    <span className="text-xs text-slate-400">/{item.uomCode || 'PC'}</span>
                   </div>
                 </div>
               </div>

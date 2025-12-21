@@ -180,7 +180,7 @@ export default function InvoiceForm() {
     return colors[index]
   }
 
-  const handleSave = async () => {
+  const handleSave = async (sendInvoice = false) => {
     setFormError(null)
     if (!formData.clientId) {
       setFormError('Please select a client')
@@ -218,7 +218,7 @@ export default function InvoiceForm() {
         clientId: parseInt(formData.clientId),
         issueDate: formData.issueDate,
         dueDate: formData.dueDate,
-        status: formData.status,
+        status: sendInvoice ? 'sent' : formData.status, // Set to 'sent' when sending invoice
         items: formData.items.map(item => ({
           itemId: item.itemId,
           name: item.name,
@@ -279,14 +279,14 @@ export default function InvoiceForm() {
               PDF
             </button>
             <button 
-              onClick={handleSave} 
+              onClick={() => handleSave(true)} 
               disabled={submitting || loading.invoice}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Saving...
+                  Sending...
                 </>
               ) : (
                 <>
@@ -670,14 +670,14 @@ export default function InvoiceForm() {
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
                     <button 
-                      onClick={handleSave} 
+                      onClick={() => handleSave(true)} 
                       disabled={submitting || loading.invoice}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <>
                           <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                          Saving...
+                          Sending...
                         </>
                       ) : (
                         <>
@@ -716,14 +716,14 @@ export default function InvoiceForm() {
               Preview
             </button>
             <button 
-              onClick={handleSave} 
+              onClick={() => handleSave(true)} 
               disabled={submitting || loading.invoice}
               className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Saving...
+                  Sending...
                 </>
               ) : (
                 <>
