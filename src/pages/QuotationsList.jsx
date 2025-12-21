@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
 
 export default function QuotationsList() {
-  const { quotations, loading, pagination, fetchQuotations, deleteQuotation, convertQuotationToInvoice } = useData()
+  const { quotations, loading, pagination, fetchQuotations, deleteQuotation, convertQuotationToInvoice, companySettings, fetchCompanySettings } = useData()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -30,6 +30,13 @@ export default function QuotationsList() {
     }
     fetchQuotations(params)
   }, [page, debouncedSearch, filter, fetchQuotations])
+
+  // Fetch settings if not already loaded
+  useEffect(() => {
+    if (!companySettings) {
+      fetchCompanySettings()
+    }
+  }, [fetchCompanySettings, companySettings])
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this quotation?')) {
@@ -78,6 +85,24 @@ export default function QuotationsList() {
     }
     return badges[status] || badges.draft
   }
+
+  // Get currency symbol from currency code
+  const getCurrencySymbol = (currencyCode) => {
+    const currencyMap = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥',
+      'MVR': 'Rf',
+      'INR': '₹',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'SGD': 'S$',
+    }
+    return currencyMap[currencyCode] || currencyCode || '$'
+  }
+
+  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
 
   const headerActions = (
     <Link
@@ -191,7 +216,7 @@ export default function QuotationsList() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          ${quotation.totalAmount?.toLocaleString() || quotation.amount?.toLocaleString() || '0.00'}
+                          {currencySymbol}{quotation.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || quotation.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -325,7 +350,7 @@ export default function QuotationsList() {
                   <div className="flex flex-col">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Amount</span>
                     <span className="text-sm font-bold text-slate-900 dark:text-white">
-                      ${quotation.totalAmount?.toLocaleString() || quotation.amount?.toLocaleString() || '0.00'}
+                      {currencySymbol}{quotation.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || quotation.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                     </span>
                   </div>
                   <div className="flex flex-col items-end">

@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
 
 export default function InvoicesList() {
-  const { invoices, loading, pagination, fetchInvoices, deleteInvoice } = useData()
+  const { invoices, loading, pagination, fetchInvoices, deleteInvoice, companySettings, fetchCompanySettings } = useData()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -29,6 +29,13 @@ export default function InvoicesList() {
     }
     fetchInvoices(params)
   }, [page, debouncedSearch, filter, fetchInvoices])
+
+  // Fetch settings if not already loaded
+  useEffect(() => {
+    if (!companySettings) {
+      fetchCompanySettings()
+    }
+  }, [fetchCompanySettings, companySettings])
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this invoice?')) {
@@ -72,6 +79,24 @@ export default function InvoicesList() {
   const getStatusText = (status) => {
     return status === 'partial' ? 'Partial' : status.toUpperCase()
   }
+
+  // Get currency symbol from currency code
+  const getCurrencySymbol = (currencyCode) => {
+    const currencyMap = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥',
+      'MVR': 'Rf',
+      'INR': '₹',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'SGD': 'S$',
+    }
+    return currencyMap[currencyCode] || currencyCode || '$'
+  }
+
+  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
 
   const headerActions = (
     <Link
@@ -184,9 +209,9 @@ export default function InvoicesList() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">{currencySymbol}{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       {invoice.status === 'partial' && paidAmount > 0 && (
-                        <p className="text-xs text-amber-600 mt-0.5">Paid: ${paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-xs text-amber-600 mt-0.5">Paid: {currencySymbol}{paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -298,7 +323,7 @@ export default function InvoicesList() {
                 </div>
               </div>
               <div className="flex flex-col items-end">
-                <span className="text-slate-900 dark:text-white font-bold text-base">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-slate-900 dark:text-white font-bold text-base">{currencySymbol}{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 <span className={`text-[10px] font-medium mt-0.5 ${
                   invoice.status === 'overdue' ? 'text-red-500 dark:text-red-400' :
                   invoice.status === 'partial' ? 'text-amber-600 dark:text-amber-400' :
