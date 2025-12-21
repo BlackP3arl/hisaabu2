@@ -9,7 +9,7 @@ import PrintPreview from '../components/PrintPreview'
 export default function InvoiceForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getInvoice, createInvoice, updateInvoice, fetchClients, fetchCategories, clients, categories, loading } = useData()
+  const { getInvoice, createInvoice, updateInvoice, fetchClients, fetchCategories, clients, categories, companySettings, fetchCompanySettings, loading } = useData()
   const [invoice, setInvoice] = useState(null)
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -27,11 +27,15 @@ export default function InvoiceForm() {
     terms: '',
   })
 
-  // Load clients and categories on mount
+  // Load clients, categories, and settings on mount
   useEffect(() => {
     fetchClients()
     fetchCategories()
-  }, [fetchClients, fetchCategories])
+    // Fetch settings if not already loaded
+    if (!companySettings) {
+      fetchCompanySettings()
+    }
+  }, [fetchClients, fetchCategories, fetchCompanySettings, companySettings])
 
   // Load invoice data if editing
   useEffect(() => {
@@ -75,6 +79,25 @@ export default function InvoiceForm() {
     const category = categories.find(c => c.id === categoryId)
     return category?.color || '#6B7280'
   }
+
+  // Get currency symbol from currency code
+  const getCurrencySymbol = (currencyCode) => {
+    const currencyMap = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥',
+      'MVR': 'Rf',
+      'INR': '₹',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'SGD': 'S$',
+    }
+    return currencyMap[currencyCode] || currencyCode || '$'
+  }
+
+  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
+  const currencyCode = companySettings?.currency || 'USD'
 
   const calculateTotals = () => {
     const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
@@ -426,7 +449,7 @@ export default function InvoiceForm() {
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  ${((item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100)) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
+                                  {currencySymbol}{((item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100)) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button 
@@ -459,12 +482,12 @@ export default function InvoiceForm() {
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</p>
                                 </div>
                               </div>
-                              <span className="font-bold text-gray-900 dark:text-white text-sm">${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}</span>
+                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                 <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
-                                <span>x ${item.price.toFixed(2)}</span>
+                                <span>x {currencySymbol}{item.price.toFixed(2)}</span>
                               </div>
                               <div className="flex gap-2">
                                 <button 
@@ -523,24 +546,24 @@ export default function InvoiceForm() {
                     <div className="space-y-3">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
-                        <span className="font-medium text-gray-900 dark:text-white">${subtotal.toFixed(2)}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{currencySymbol}{subtotal.toFixed(2)}</span>
                       </div>
                       {discount > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500 dark:text-gray-400">Discount</span>
-                          <span className="font-medium text-green-600 dark:text-green-400">-${discount.toFixed(2)}</span>
+                          <span className="font-medium text-green-600 dark:text-green-400">-{currencySymbol}{discount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500 dark:text-gray-400">Tax</span>
-                        <span className="font-medium text-gray-900 dark:text-white">${tax.toFixed(2)}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{currencySymbol}{tax.toFixed(2)}</span>
                       </div>
                       <div className="h-px w-full bg-gray-200 dark:bg-gray-700 my-3"></div>
                       <div className="flex justify-between items-end">
                         <span className="text-base font-bold text-gray-900 dark:text-white">Grand Total</span>
                         <div className="flex flex-col items-end">
-                          <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
-                          <span className="text-xs text-gray-400">USD</span>
+                          <span className="text-2xl font-bold text-primary">{currencySymbol}{total.toFixed(2)}</span>
+                          <span className="text-xs text-gray-400">{currencyCode}</span>
                         </div>
                       </div>
                     </div>
@@ -558,11 +581,11 @@ export default function InvoiceForm() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-slate-500 dark:text-slate-400">Amount Paid</span>
-                        <span className="font-medium text-slate-900 dark:text-white">$0.00</span>
+                        <span className="font-medium text-slate-900 dark:text-white">{currencySymbol}0.00</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-slate-500 dark:text-slate-400">Balance Due</span>
-                        <span className="font-bold text-red-600 dark:text-red-400">${total.toFixed(2)}</span>
+                        <span className="font-bold text-red-600 dark:text-red-400">{currencySymbol}{total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
