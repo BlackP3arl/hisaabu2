@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import PrintPreview from '../components/PrintPreview'
 import apiClient from '../api/client'
 import { handleApiError } from '../utils/errorHandler'
+import { getCurrencySymbol, formatCurrency } from '../utils/currency'
 
 export default function QuotationDetail() {
   const { id } = useParams()
@@ -142,6 +143,11 @@ export default function QuotationDetail() {
   const issueDate = quotation.issueDate || quotation.date
   const expiryDate = quotation.expiryDate || quotation.expiry
   const isExpired = expiryDate && new Date(expiryDate) < new Date()
+  
+  // Get currency information
+  const documentCurrency = quotation.currency || companySettings?.currency || 'MVR'
+  const baseCurrency = companySettings?.baseCurrency || 'USD'
+  const showExchangeRate = quotation.exchangeRate && documentCurrency !== baseCurrency
   
   // Calculate totals from line items
   const calculateTotals = () => {
@@ -281,7 +287,17 @@ export default function QuotationDetail() {
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">Total Amount</p>
-                        <p className="text-sm font-bold text-primary mt-1">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-sm font-bold text-primary">{formatCurrency(total, documentCurrency)}</p>
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                            {documentCurrency}
+                          </span>
+                        </div>
+                        {showExchangeRate && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            1 {documentCurrency} = {quotation.exchangeRate} {baseCurrency}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -315,8 +331,8 @@ export default function QuotationDetail() {
                                     )}
                                   </td>
                                   <td className="px-4 py-4 text-center text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">{item.quantity}</td>
-                                  <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                  <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">${itemTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">{formatCurrency(item.price, documentCurrency)}</td>
+                                  <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(itemTotal, documentCurrency)}</td>
                                 </tr>
                               )
                             })
@@ -336,12 +352,12 @@ export default function QuotationDetail() {
                       <div className="w-full sm:w-64 space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
-                          <span className="font-medium text-slate-900 dark:text-white">${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(subtotal, documentCurrency)}</span>
                         </div>
                         {discount > 0 && (
                           <div className="flex justify-between text-sm">
                             <span className="text-slate-500 dark:text-slate-400">Discount</span>
-                            <span className="font-medium text-slate-900 dark:text-white">-${discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="font-medium text-slate-900 dark:text-white">-{formatCurrency(discount, documentCurrency)}</span>
                           </div>
                         )}
                         {tax > 0 && (
@@ -351,13 +367,19 @@ export default function QuotationDetail() {
                                 ? `Tax (${companySettings.defaultTax.name} ${companySettings.defaultTax.rate}%)`
                                 : 'Tax'}
                             </span>
-                            <span className="font-medium text-slate-900 dark:text-white">${tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(tax, documentCurrency)}</span>
+                          </div>
+                        )}
+                        {showExchangeRate && (
+                          <div className="flex justify-between text-xs pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <span className="text-slate-400">Exchange Rate</span>
+                            <span className="text-slate-500">1 {documentCurrency} = {quotation.exchangeRate} {baseCurrency}</span>
                           </div>
                         )}
                         <div className="h-px bg-slate-200 dark:bg-slate-700 my-2"></div>
                         <div className="flex justify-between">
                           <span className="font-bold text-slate-900 dark:text-white">Total</span>
-                          <span className="text-xl font-bold text-primary">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-xl font-bold text-primary">{formatCurrency(total, documentCurrency)}</span>
                         </div>
                       </div>
                     </div>

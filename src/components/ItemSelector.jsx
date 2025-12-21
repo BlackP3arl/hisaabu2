@@ -87,11 +87,12 @@ export default function ItemSelector({ onSelect, onClose }) {
 
   const handleSelectItem = (item) => {
     const taxRate = getTaxRate(item.gstApplicable !== false) // Default to true if not set
+    // Items no longer have default prices - price must be entered manually in document currency
     onSelect({
       name: item.name,
       description: item.description,
       quantity: 1,
-      price: item.rate,
+      price: 0, // Price must be entered manually - no default from item
       discount: 0,
       tax: taxRate,
       taxPercent: taxRate,
@@ -102,24 +103,25 @@ export default function ItemSelector({ onSelect, onClose }) {
   }
 
   const handleCreateAndAdd = async () => {
-    if (!newItem.name || !newItem.rate) return
+    if (!newItem.name) return // Rate is no longer required
     
     setCreating(true)
     setError(null)
     try {
       const createdItem = await createItem({
         ...newItem,
-        rate: parseFloat(newItem.rate) || 0,
+        rate: newItem.rate ? parseFloat(newItem.rate) : null, // Rate is optional now
         categoryId: newItem.categoryId ? parseInt(newItem.categoryId) : null,
         gstApplicable: newItem.gstApplicable !== false // Default to true
       })
       
       const taxRate = getTaxRate(createdItem.gstApplicable !== false)
+      // Items no longer have default prices - price must be entered manually in document currency
       onSelect({
         name: createdItem.name,
         description: createdItem.description,
         quantity: 1,
-        price: createdItem.rate,
+        price: 0, // Price must be entered manually - no default from item
         discount: 0,
         tax: taxRate,
         taxPercent: taxRate,
@@ -332,7 +334,7 @@ export default function ItemSelector({ onSelect, onClose }) {
               </button>
               <button
                 onClick={handleCreateAndAdd}
-                disabled={!newItem.name || !newItem.rate || creating}
+                disabled={!newItem.name || creating}
                 className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {creating ? (

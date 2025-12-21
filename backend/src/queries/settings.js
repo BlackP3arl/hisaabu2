@@ -91,6 +91,7 @@ export const updateSettings = async (userId, settingsData) => {
     defaultTaxRate: 'default_tax_rate',
     defaultTaxId: 'default_tax_id',
     currency: 'currency',
+    baseCurrency: 'base_currency',
     dateFormat: 'date_format',
     invoicePrefix: 'invoice_prefix',
     quotationPrefix: 'quotation_prefix',
@@ -153,6 +154,7 @@ export const updateSettings = async (userId, settingsData) => {
         else if (key === 'quotationPrefix') allValues.push('QT-');
         else if (key === 'defaultTaxRate') allValues.push(10.00);
         else if (key === 'currency') allValues.push('MVR');
+        else if (key === 'baseCurrency') allValues.push('USD');
         else if (key === 'dateFormat') allValues.push('MM/DD/YYYY');
         else if (key === 'taxPerItemEnabled') allValues.push(true);
         else allValues.push(null);

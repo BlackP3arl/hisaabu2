@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import PrintPreview from '../components/PrintPreview'
 import apiClient from '../api/client'
 import { handleApiError } from '../utils/errorHandler'
+import { formatCurrency } from '../utils/currency'
 
 export default function InvoiceDetail() {
   const { id } = useParams()
@@ -164,6 +165,11 @@ export default function InvoiceDetail() {
     const total = afterDiscount + tax
     return { subtotal, discount, tax, total }
   }
+
+  // Get currency information
+  const documentCurrency = invoice?.currency || companySettings?.currency || 'MVR'
+  const baseCurrency = companySettings?.baseCurrency || 'USD'
+  const showExchangeRate = invoice?.exchangeRate && documentCurrency !== baseCurrency
 
   const getStatusStyles = (status) => {
     const styles = {
@@ -332,7 +338,17 @@ export default function InvoiceDetail() {
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">Amount Due</p>
-                        <p className="text-sm font-bold text-primary mt-1">${balanceDue.toFixed(2)}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-sm font-bold text-primary">{formatCurrency(balanceDue, documentCurrency)}</p>
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                            {documentCurrency}
+                          </span>
+                        </div>
+                        {showExchangeRate && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            1 {documentCurrency} = {invoice.exchangeRate} {baseCurrency}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -367,8 +383,8 @@ export default function InvoiceDetail() {
                                     )}
                                   </td>
                                   <td className="px-4 py-4 text-center text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">{item.quantity}</td>
-                                  <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">${item.price.toFixed(2)}</td>
-                                  <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">${itemTotal.toFixed(2)}</td>
+                                  <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">{formatCurrency(item.price, documentCurrency)}</td>
+                                  <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(itemTotal, documentCurrency)}</td>
                                 </tr>
                               )
                             })}
@@ -386,12 +402,12 @@ export default function InvoiceDetail() {
                       <div className="w-full sm:w-64 space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
-                          <span className="font-medium text-slate-900 dark:text-white">${totals.subtotal.toFixed(2)}</span>
+                          <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(totals.subtotal, documentCurrency)}</span>
                         </div>
                         {totals.discount > 0 && (
                           <div className="flex justify-between text-sm">
                             <span className="text-slate-500 dark:text-slate-400">Discount</span>
-                            <span className="font-medium text-slate-900 dark:text-white">-${totals.discount.toFixed(2)}</span>
+                            <span className="font-medium text-slate-900 dark:text-white">-{formatCurrency(totals.discount, documentCurrency)}</span>
                           </div>
                         )}
                         {totals.tax > 0 && (
@@ -401,24 +417,30 @@ export default function InvoiceDetail() {
                                 ? `Tax (${companySettings.defaultTax.name} ${companySettings.defaultTax.rate}%)`
                                 : 'Tax'}
                             </span>
-                            <span className="font-medium text-slate-900 dark:text-white">${totals.tax.toFixed(2)}</span>
+                            <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(totals.tax, documentCurrency)}</span>
+                          </div>
+                        )}
+                        {showExchangeRate && (
+                          <div className="flex justify-between text-xs pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <span className="text-slate-400">Exchange Rate</span>
+                            <span className="text-slate-500">1 {documentCurrency} = {invoice.exchangeRate} {baseCurrency}</span>
                           </div>
                         )}
                         <div className="h-px bg-slate-200 dark:bg-slate-700 my-2"></div>
                         <div className="flex justify-between">
                           <span className="font-bold text-slate-900 dark:text-white">Total</span>
-                          <span className="text-xl font-bold text-primary">${totals.total.toFixed(2)}</span>
+                          <span className="text-xl font-bold text-primary">{formatCurrency(totals.total, documentCurrency)}</span>
                         </div>
                         {paidAmount > 0 && (
                           <>
                             <div className="h-px bg-slate-200 dark:bg-slate-700 my-2"></div>
                             <div className="flex justify-between text-sm">
                               <span className="text-slate-500 dark:text-slate-400">Paid</span>
-                              <span className="font-medium text-emerald-600 dark:text-emerald-400">${paidAmount.toFixed(2)}</span>
+                              <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(paidAmount, documentCurrency)}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="font-bold text-slate-900 dark:text-white">Balance Due</span>
-                              <span className="text-lg font-bold text-red-600 dark:text-red-400">${balanceDue.toFixed(2)}</span>
+                              <span className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(balanceDue, documentCurrency)}</span>
                             </div>
                           </>
                         )}
@@ -482,15 +504,15 @@ export default function InvoiceDetail() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500 dark:text-slate-400">Total Amount</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">${totals.total.toFixed(2)}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(totals.total, documentCurrency)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500 dark:text-slate-400">Amount Paid</span>
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">${paidAmount.toFixed(2)}</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(paidAmount, documentCurrency)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500 dark:text-slate-400">Balance Due</span>
-                      <span className="font-bold text-red-600 dark:text-red-400">${balanceDue.toFixed(2)}</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(balanceDue, documentCurrency)}</span>
                     </div>
                     {(invoice.status === 'partial' || paidAmount > 0) && (
                       <div className="pt-2">

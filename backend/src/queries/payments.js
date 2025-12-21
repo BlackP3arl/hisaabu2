@@ -57,7 +57,17 @@ export const createPayment = async (userId, invoiceId, paymentData) => {
       paymentMethod,
       referenceNumber,
       notes,
+      currency,
     } = paymentData;
+
+    // Get currency from invoice (payment must match invoice currency)
+    const invoiceCurrency = invoice.currency || 'MVR';
+    const paymentCurrency = currency || invoiceCurrency;
+
+    // Validate payment currency matches invoice currency
+    if (paymentCurrency !== invoiceCurrency) {
+      throw new Error('PAYMENT_CURRENCY_MISMATCH');
+    }
 
     // Validate payment amount doesn't exceed balance
     const balanceDue = parseFloat(invoice.balance_due || 0);
@@ -69,9 +79,9 @@ export const createPayment = async (userId, invoiceId, paymentData) => {
     const paymentResult = await client.query(
       `INSERT INTO payments (
         invoice_id, amount, payment_date, payment_method,
-        reference_number, notes, user_id
+        reference_number, notes, user_id, currency
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *`,
       [
         invoiceId,
@@ -81,6 +91,7 @@ export const createPayment = async (userId, invoiceId, paymentData) => {
         referenceNumber || null,
         notes || null,
         userId,
+        paymentCurrency,
       ]
     );
 
@@ -171,7 +182,13 @@ export const updatePayment = async (userId, invoiceId, paymentId, paymentData) =
       paymentMethod,
       referenceNumber,
       notes,
+      currency,
     } = paymentData;
+
+    // Validate payment currency matches invoice currency if provided
+    if (currency !== undefined && currency !== invoice.currency) {
+      throw new Error('PAYMENT_CURRENCY_MISMATCH');
+    }
 
     // If amount is being updated, validate it
     if (amount !== undefined) {
@@ -213,6 +230,14 @@ export const updatePayment = async (userId, invoiceId, paymentId, paymentData) =
     if (notes !== undefined) {
       fields.push(`notes = $${paramIndex++}`);
       values.push(notes || null);
+    }
+    if (currency !== undefined) {
+      // Validate currency matches invoice
+      if (currency !== invoice.currency) {
+        throw new Error('PAYMENT_CURRENCY_MISMATCH');
+      }
+      fields.push(`currency = $${paramIndex++}`);
+      values.push(currency);
     }
 
     if (fields.length > 0) {

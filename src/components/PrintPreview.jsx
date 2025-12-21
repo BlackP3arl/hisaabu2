@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useData } from '../context/DataContext'
 import { handleApiError } from '../utils/errorHandler'
 import apiClient from '../api/client'
+import { getCurrencySymbol, formatCurrency } from '../utils/currency'
 
 export default function PrintPreview({ 
   type = 'invoice', // 'invoice' or 'quotation'
@@ -43,6 +44,12 @@ export default function PrintPreview({
   }
 
   const { subtotal, discount, tax, total } = calculateTotals()
+
+  // Get currency from document data or fallback to company settings
+  const documentCurrency = data.currency || companySettings?.currency || 'MVR'
+  const currencySymbol = getCurrencySymbol(documentCurrency)
+  const baseCurrency = companySettings?.baseCurrency || 'USD'
+  const showExchangeRate = data.exchangeRate && documentCurrency !== baseCurrency
 
   const getStatusStyles = (status) => {
     const styles = {
@@ -363,7 +370,7 @@ export default function PrintPreview({
                 <label className="block text-[11px] text-slate-400 uppercase tracking-wider font-semibold mb-1">
                   {isQuotation ? 'Total Amount' : 'Amount Due'}
                 </label>
-                <p className="text-sm font-bold text-primary">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="text-sm font-bold text-primary">{formatCurrency(total, documentCurrency)}</p>
               </div>
             </div>
 
@@ -398,9 +405,9 @@ export default function PrintPreview({
                             )}
                           </td>
                           <td className="px-4 py-4 text-center text-sm text-slate-600">{item.quantity}</td>
-                          <td className="px-4 py-4 text-right text-sm text-slate-600">${item.price.toFixed(2)}</td>
+                          <td className="px-4 py-4 text-right text-sm text-slate-600">{formatCurrency(item.price, documentCurrency)}</td>
                           <td className="px-4 py-4 text-right text-sm text-slate-600">{taxPercent.toFixed(2)}%</td>
-                          <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">${lineTotal.toFixed(2)}</td>
+                          <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">{formatCurrency(lineTotal, documentCurrency)}</td>
                         </tr>
                       )
                     })
@@ -411,9 +418,9 @@ export default function PrintPreview({
                         <p className="text-xs text-slate-500 mt-0.5">{documentTitle.toLowerCase()} item description</p>
                       </td>
                       <td className="px-4 py-4 text-center text-sm text-slate-600">1</td>
-                      <td className="px-4 py-4 text-right text-sm text-slate-600">${total.toFixed(2)}</td>
+                      <td className="px-4 py-4 text-right text-sm text-slate-600">{formatCurrency(total, documentCurrency)}</td>
                       <td className="px-4 py-4 text-right text-sm text-slate-600">0%</td>
-                      <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">${total.toFixed(2)}</td>
+                      <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">{formatCurrency(total, documentCurrency)}</td>
                     </tr>
                   )}
                 </tbody>
@@ -425,25 +432,31 @@ export default function PrintPreview({
               <div className="w-72 space-y-2 p-5 bg-slate-50 rounded-xl">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Subtotal</span>
-                  <span className="font-medium text-slate-900">${subtotal.toFixed(2)}</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(subtotal, documentCurrency)}</span>
                 </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">Discount</span>
-                    <span className="font-medium text-green-600">-${discount.toFixed(2)}</span>
+                    <span className="font-medium text-green-600">-{formatCurrency(discount, documentCurrency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Tax</span>
-                  <span className="font-medium text-slate-900">${tax.toFixed(2)}</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(tax, documentCurrency)}</span>
                 </div>
+                {showExchangeRate && (
+                  <div className="flex justify-between text-xs pt-2 border-t border-slate-200">
+                    <span className="text-slate-400">Exchange Rate</span>
+                    <span className="text-slate-500">1 {documentCurrency} = {data.exchangeRate} {baseCurrency}</span>
+                  </div>
+                )}
                 <div className="h-px bg-slate-200 my-3"></div>
                 <div className="flex justify-between items-center">
                   <span className="text-base font-bold text-slate-900">Total</span>
-                  <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-primary">{formatCurrency(total, documentCurrency)}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-400">{companySettings?.currency || 'MVR'}</span>
+                  <span className="text-xs text-slate-400">{documentCurrency}</span>
                 </div>
               </div>
             </div>

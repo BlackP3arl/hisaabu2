@@ -19,6 +19,7 @@ export default function Settings() {
     registration: '',
     defaultTax: 0,
     currency: 'MVR',
+    baseCurrency: 'USD',
     invoicePrefix: 'INV',
     quotationPrefix: 'QUO',
     dateFormat: 'MM/DD/YYYY',
@@ -47,6 +48,7 @@ export default function Settings() {
         registration: companySettings.registrationNumber || '',
         defaultTaxId: companySettings.defaultTaxId || null,
         currency: companySettings.currency || 'MVR',
+        baseCurrency: companySettings.baseCurrency || 'USD',
         invoicePrefix: companySettings.invoicePrefix || 'INV',
         quotationPrefix: companySettings.quotationPrefix || 'QUO',
         dateFormat: companySettings.dateFormat || 'MM/DD/YYYY',
@@ -73,6 +75,7 @@ export default function Settings() {
         registrationNumber: formData.registration,
         defaultTaxId: formData.defaultTaxId,
         currency: formData.currency,
+        baseCurrency: formData.baseCurrency,
         invoicePrefix: formData.invoicePrefix,
         quotationPrefix: formData.quotationPrefix,
         dateFormat: formData.dateFormat,
@@ -309,6 +312,26 @@ export default function Settings() {
                         <option value="GBP">GBP - British Pound</option>
                         <option value="INR">INR - Indian Rupee</option>
                       </select>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Default currency for new documents
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Base Currency</label>
+                      <select 
+                        value={formData.baseCurrency}
+                        onChange={(e) => setFormData({ ...formData, baseCurrency: e.target.value })}
+                        className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                      >
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="GBP">GBP - British Pound</option>
+                        <option value="MVR">MVR - Maldivian Rufiyaa</option>
+                        <option value="CNY">CNY - Chinese Yuan</option>
+                      </select>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Base currency for exchange rate calculations. Exchange rates are calculated relative to this currency.
+                      </p>
                     </div>
                   </div>
                 </div>

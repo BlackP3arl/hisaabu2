@@ -6,6 +6,7 @@ import {
 } from '../queries/payments.js';
 import { getInvoiceById } from '../queries/invoices.js';
 import { successResponse, errorResponse, toCamelCase } from '../utils/response.js';
+import { validateCurrencyCode } from '../utils/currency.js';
 
 /**
  * Record payment for invoice
@@ -93,11 +94,35 @@ export const recordPayment = async (req, res) => {
       );
     }
 
-    // Create payment
+    // Validate currency if provided (must match invoice currency)
+    const invoiceCurrency = invoice.currency || 'MVR';
+    if (currency !== undefined) {
+      if (!validateCurrencyCode(currency)) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'Invalid currency code (must be ISO 4217 format: 3 uppercase letters)',
+          { currency: ['Invalid currency code'] },
+          422
+        );
+      }
+      if (currency !== invoiceCurrency) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'Payment currency must match invoice currency',
+          { currency: [`Payment currency must be ${invoiceCurrency} to match invoice`] },
+          422
+        );
+      }
+    }
+
+    // Create payment (currency will be auto-set from invoice if not provided)
     const result = await createPayment(userId, invoiceId, {
       amount: parseFloat(amount),
       paymentDate,
       paymentMethod: paymentMethod || null,
+      currency: currency || invoiceCurrency,
       referenceNumber: referenceNumber || null,
       notes: notes || null,
     });

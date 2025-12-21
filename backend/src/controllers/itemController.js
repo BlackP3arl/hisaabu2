@@ -125,12 +125,14 @@ export const create = async (req, res) => {
       );
     }
 
-    if (rate === undefined || rate === null || isNaN(rate) || rate < 0) {
+    // Rate is now optional (nullable) for multi-currency support
+    // Prices are entered at document level
+    if (rate !== undefined && rate !== null && (isNaN(rate) || rate < 0)) {
       return errorResponse(
         res,
         'VALIDATION_ERROR',
-        'Rate is required and must be >= 0',
-        { rate: ['Rate is required and must be >= 0'] },
+        'Rate must be >= 0 if provided',
+        { rate: ['Rate must be >= 0 if provided'] },
         422
       );
     }

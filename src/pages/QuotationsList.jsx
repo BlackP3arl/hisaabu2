@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
+import { formatCurrency } from '../utils/currency'
 
 export default function QuotationsList() {
   const { quotations, loading, pagination, fetchQuotations, deleteQuotation, convertQuotationToInvoice, companySettings, fetchCompanySettings } = useData()
@@ -86,23 +87,6 @@ export default function QuotationsList() {
     return badges[status] || badges.draft
   }
 
-  // Get currency symbol from currency code
-  const getCurrencySymbol = (currencyCode) => {
-    const currencyMap = {
-      'USD': '$',
-      'EUR': '€',
-      'GBP': '£',
-      'JPY': '¥',
-      'MVR': 'Rf',
-      'INR': '₹',
-      'AUD': 'A$',
-      'CAD': 'C$',
-      'SGD': 'S$',
-    }
-    return currencyMap[currencyCode] || currencyCode || '$'
-  }
-
-  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
 
   const headerActions = (
     <Link
@@ -215,9 +199,14 @@ export default function QuotationsList() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          {currencySymbol}{quotation.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || quotation.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                        </span>
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">
+                            {formatCurrency(quotation.totalAmount || quotation.amount || 0, quotation.currency || companySettings?.currency || 'MVR')}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                            {quotation.currency || companySettings?.currency || 'MVR'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center">
@@ -349,9 +338,14 @@ export default function QuotationsList() {
                 <div className="mt-4 pt-3 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
                   <div className="flex flex-col">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Amount</span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">
-                      {currencySymbol}{quotation.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || quotation.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">
+                        {formatCurrency(quotation.totalAmount || quotation.amount || 0, quotation.currency || companySettings?.currency || 'MVR')}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                        {quotation.currency || companySettings?.currency || 'MVR'}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Expiry</span>

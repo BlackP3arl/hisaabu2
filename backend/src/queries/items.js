@@ -116,7 +116,7 @@ export const createItem = async (userId, itemData) => {
     `INSERT INTO items (name, description, rate, category_id, status, gst_applicable, user_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [name, description || null, rate, categoryId || null, status, gstApplicable !== false, userId]
+    [name, description || null, rate || null, categoryId || null, status, gstApplicable !== false, userId]
   );
 
   return result.rows[0];
@@ -142,7 +142,7 @@ export const updateItem = async (userId, itemId, itemData) => {
   }
   if (rate !== undefined) {
     fields.push(`rate = $${paramIndex++}`);
-    values.push(rate);
+    values.push(rate || null);
   }
   if (categoryId !== undefined) {
     fields.push(`category_id = $${paramIndex++}`);

@@ -8,10 +8,11 @@ import {
   verifyClientOwnership,
 } from '../queries/quotations.js';
 import { createInvoice } from '../queries/invoices.js';
-import { getQuotationPrefix, getInvoicePrefix } from '../queries/settings.js';
+import { getQuotationPrefix, getInvoicePrefix, getSettings } from '../queries/settings.js';
 import { generateQuotationNumber, generateInvoiceNumber } from '../utils/numbering.js';
 import { query } from '../config/database.js';
 import { successResponse, errorResponse, toCamelCase, toCamelCaseArray } from '../utils/response.js';
+import { validateCurrencyCode } from '../utils/currency.js';
 
 /**
  * Get list of quotations
@@ -125,6 +126,8 @@ export const create = async (req, res) => {
       terms,
       status = 'draft',
       items,
+      currency,
+      exchangeRate,
     } = req.body;
 
     // Validation
@@ -252,6 +255,47 @@ export const create = async (req, res) => {
       }
     }
 
+    // Get company settings for default currency and base currency
+    const settings = await getSettings(userId);
+    const defaultCurrency = settings?.currency || 'MVR';
+    const baseCurrency = settings?.base_currency || 'USD';
+    const documentCurrency = currency || defaultCurrency;
+
+    // Validate currency code
+    if (documentCurrency && !validateCurrencyCode(documentCurrency)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid currency code (must be ISO 4217 format: 3 uppercase letters)',
+        { currency: ['Invalid currency code'] },
+        422
+      );
+    }
+
+    // Validate exchange rate
+    if (documentCurrency !== baseCurrency) {
+      if (!exchangeRate || exchangeRate <= 0) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'Exchange rate is required when currency differs from base currency',
+          { exchangeRate: ['Exchange rate must be > 0 when currency ≠ base currency'] },
+          422
+        );
+      }
+    } else {
+      // If currency is base currency, exchange rate should be null
+      if (exchangeRate !== undefined && exchangeRate !== null) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'Exchange rate should not be provided when currency is base currency',
+          { exchangeRate: ['Exchange rate should be null when currency is base currency'] },
+          422
+        );
+      }
+    }
+
     // Get quotation prefix and generate number
     const prefix = await getQuotationPrefix(userId);
     const quotationNumber = await generateQuotationNumber(userId, prefix, query);
@@ -266,6 +310,8 @@ export const create = async (req, res) => {
         notes,
         terms,
         status,
+        currency: documentCurrency,
+        exchangeRate: documentCurrency !== baseCurrency ? exchangeRate : null,
       },
       items,
       quotationNumber
@@ -333,6 +379,8 @@ export const update = async (req, res) => {
       terms,
       status,
       items,
+      currency,
+      exchangeRate,
     } = req.body;
 
     // Validation
@@ -370,6 +418,74 @@ export const update = async (req, res) => {
           null,
           404
         );
+      }
+    }
+
+    // Validate currency if provided
+    if (currency !== undefined) {
+      if (!validateCurrencyCode(currency)) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'Invalid currency code (must be ISO 4217 format: 3 uppercase letters)',
+          { currency: ['Invalid currency code'] },
+          422
+        );
+      }
+
+      // Get company settings for base currency
+      const settings = await getSettings(userId);
+      const baseCurrency = settings?.base_currency || 'USD';
+
+      // Validate exchange rate
+      if (currency !== baseCurrency) {
+        if (exchangeRate === undefined || exchangeRate === null || exchangeRate <= 0) {
+          return errorResponse(
+            res,
+            'VALIDATION_ERROR',
+            'Exchange rate is required when currency differs from base currency',
+            { exchangeRate: ['Exchange rate must be > 0 when currency ≠ base currency'] },
+            422
+          );
+        }
+      } else {
+        // If currency is base currency, exchange rate should be null
+        if (exchangeRate !== undefined && exchangeRate !== null) {
+          return errorResponse(
+            res,
+            'VALIDATION_ERROR',
+            'Exchange rate should not be provided when currency is base currency',
+            { exchangeRate: ['Exchange rate should be null when currency is base currency'] },
+            422
+          );
+        }
+      }
+    } else if (exchangeRate !== undefined) {
+      // If exchange rate is provided but currency is not, use existing currency
+      const settings = await getSettings(userId);
+      const baseCurrency = settings?.base_currency || 'USD';
+      const existingCurrency = existingQuotation.currency || settings?.currency || 'MVR';
+
+      if (existingCurrency !== baseCurrency) {
+        if (exchangeRate === null || exchangeRate <= 0) {
+          return errorResponse(
+            res,
+            'VALIDATION_ERROR',
+            'Exchange rate must be > 0 when currency differs from base currency',
+            { exchangeRate: ['Exchange rate must be > 0'] },
+            422
+          );
+        }
+      } else {
+        if (exchangeRate !== null) {
+          return errorResponse(
+            res,
+            'VALIDATION_ERROR',
+            'Exchange rate should be null when currency is base currency',
+            { exchangeRate: ['Exchange rate should be null'] },
+            422
+          );
+        }
       }
     }
 
@@ -417,6 +533,33 @@ export const update = async (req, res) => {
       }
     }
 
+    // Prepare currency and exchange rate for update
+    const settings = await getSettings(userId);
+    const baseCurrency = settings?.base_currency || 'USD';
+    let finalCurrency = currency !== undefined ? currency : existingQuotation.currency;
+    let finalExchangeRate = exchangeRate !== undefined ? exchangeRate : existingQuotation.exchange_rate;
+
+    // If currency changed, recalculate exchange rate requirement
+    if (currency !== undefined) {
+      if (currency === baseCurrency) {
+        finalExchangeRate = null;
+      } else if (exchangeRate === undefined) {
+        // If currency changed but exchange rate not provided, keep existing or require it
+        if (existingQuotation.currency === baseCurrency) {
+          // Currency changed from base to non-base, require exchange rate
+          if (finalExchangeRate === null || finalExchangeRate <= 0) {
+            return errorResponse(
+              res,
+              'VALIDATION_ERROR',
+              'Exchange rate is required when currency differs from base currency',
+              { exchangeRate: ['Exchange rate must be > 0'] },
+              422
+            );
+          }
+        }
+      }
+    }
+
     // Update quotation fields
     const updatedQuotation = await updateQuotation(userId, quotationId, {
       clientId,
@@ -425,6 +568,8 @@ export const update = async (req, res) => {
       notes,
       terms,
       status,
+      currency: finalCurrency,
+      exchangeRate: finalExchangeRate,
     });
 
     if (!updatedQuotation) {

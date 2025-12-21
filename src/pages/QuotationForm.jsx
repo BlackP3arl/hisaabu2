@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import ItemSelector from '../components/ItemSelector'
 import ClientSelector from '../components/ClientSelector'
 import PrintPreview from '../components/PrintPreview'
+import { getCurrencySymbol, getSupportedCurrencies } from '../utils/currency'
 
 export default function QuotationForm() {
   const { id } = useParams()
@@ -25,6 +26,8 @@ export default function QuotationForm() {
     notes: '',
     terms: '',
     status: 'draft',
+    currency: '',
+    exchangeRate: null,
   })
 
   // Load categories, clients, and settings on mount
@@ -36,6 +39,16 @@ export default function QuotationForm() {
       fetchCompanySettings()
     }
   }, [fetchCategories, fetchClients, fetchCompanySettings, companySettings])
+
+  // Set default currency from company settings
+  useEffect(() => {
+    if (companySettings && !formData.currency && !id) {
+      setFormData(prev => ({
+        ...prev,
+        currency: companySettings.currency || 'MVR',
+      }))
+    }
+  }, [companySettings, id])
 
   // Load quotation data if editing
   useEffect(() => {
@@ -62,6 +75,8 @@ export default function QuotationForm() {
               notes: quotationData.notes || '',
               terms: quotationData.terms || '',
               status: quotationData.status || 'draft',
+              currency: quotationData.currency || companySettings?.currency || 'MVR',
+              exchangeRate: quotationData.exchangeRate || null,
             })
           }
         } catch (err) {
@@ -80,24 +95,10 @@ export default function QuotationForm() {
     return category?.color || '#6B7280'
   }
 
-  // Get currency symbol from currency code
-  const getCurrencySymbol = (currencyCode) => {
-    const currencyMap = {
-      'USD': '$',
-      'EUR': '€',
-      'GBP': '£',
-      'JPY': '¥',
-      'MVR': 'Rf',
-      'INR': '₹',
-      'AUD': 'A$',
-      'CAD': 'C$',
-      'SGD': 'S$',
-    }
-    return currencyMap[currencyCode] || currencyCode || '$'
-  }
-
-  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
-  const currencyCode = companySettings?.currency || 'USD'
+  const baseCurrency = companySettings?.baseCurrency || 'USD'
+  const currencySymbol = getCurrencySymbol(formData.currency || companySettings?.currency || 'MVR')
+  const currencyCode = formData.currency || companySettings?.currency || 'MVR'
+  const showExchangeRate = formData.currency && formData.currency !== baseCurrency
 
   const calculateTotals = () => {
     const subtotal = formData.items.reduce((sum, item) => {
@@ -127,12 +128,13 @@ export default function QuotationForm() {
   const { subtotal, discount, tax, total } = calculateTotals()
 
   const handleAddItem = (item) => {
+    // Items no longer have default prices - price must be entered manually in document currency
     const newItem = {
       itemId: item.id,
       name: item.name,
       description: item.description || '',
       quantity: 1,
-      price: parseFloat(item.rate || item.price || 0),
+      price: 0, // Price must be entered manually - no default from item
       discountPercent: 0,
       taxPercent: item.taxPercent !== undefined ? item.taxPercent : (item.tax !== undefined ? item.tax : 0),
       categoryId: item.categoryId,
@@ -185,6 +187,27 @@ export default function QuotationForm() {
       setFormError('Please add at least one item')
       return
     }
+    if (!formData.currency) {
+      setFormError('Please select a currency')
+      return
+    }
+
+    // Validate all items have prices
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i]
+      if (!item.price || item.price <= 0) {
+        setFormError(`Item ${i + 1} (${item.name}): Price is required and must be > 0`)
+        return
+      }
+    }
+
+    // Validate exchange rate if currency is not base currency
+    if (formData.currency !== baseCurrency) {
+      if (!formData.exchangeRate || formData.exchangeRate <= 0) {
+        setFormError('Exchange rate is required when currency differs from base currency')
+        return
+      }
+    }
 
     setSubmitting(true)
     const data = {
@@ -203,6 +226,8 @@ export default function QuotationForm() {
       notes: formData.notes,
       terms: formData.terms,
       status: formData.status,
+      currency: formData.currency,
+      exchangeRate: formData.currency !== baseCurrency ? formData.exchangeRate : null,
     }
 
     try {
@@ -332,6 +357,51 @@ export default function QuotationForm() {
                         onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
                       />
                     </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Currency</span>
+                      <select
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                        value={formData.currency}
+                        onChange={(e) => {
+                          const newCurrency = e.target.value
+                          setFormData({ 
+                            ...formData, 
+                            currency: newCurrency,
+                            exchangeRate: newCurrency !== baseCurrency ? formData.exchangeRate : null
+                          })
+                        }}
+                        required
+                      >
+                        <option value="">Select Currency</option>
+                        {getSupportedCurrencies().map(curr => (
+                          <option key={curr.code} value={curr.code}>
+                            {curr.code} - {curr.symbol} {curr.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {showExchangeRate && (
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Exchange Rate (1 {formData.currency} = ? {baseCurrency})
+                        </span>
+                        <input
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                          type="number"
+                          step="0.0001"
+                          min="0.0001"
+                          value={formData.exchangeRate || ''}
+                          onChange={(e) => setFormData({ ...formData, exchangeRate: parseFloat(e.target.value) || null })}
+                          placeholder="0.0000"
+                          required
+                        />
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Enter the exchange rate used for this document
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -675,6 +745,8 @@ export default function QuotationForm() {
             amount: total,
             date: formData.issueDate,
             expiry: formData.expiryDate,
+            currency: formData.currency,
+            exchangeRate: formData.exchangeRate,
           }}
           client={client}
           onClose={() => setShowPrintPreview(false)}

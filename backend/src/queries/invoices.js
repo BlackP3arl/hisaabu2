@@ -167,17 +167,19 @@ export const createInvoice = async (userId, invoiceData, lineItems, invoiceNumbe
       notes,
       terms,
       status = 'draft',
+      currency,
+      exchangeRate,
     } = invoiceData;
 
     // Insert invoice
     const invoiceResult = await client.query(
       `INSERT INTO invoices (
         number, client_id, user_id, issue_date, due_date,
-        notes, terms, status
+        notes, terms, status, currency, exchange_rate
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
-      [invoiceNumber, clientId, userId, issueDate, dueDate, notes || null, terms || null, status]
+      [invoiceNumber, clientId, userId, issueDate, dueDate, notes || null, terms || null, status, currency || null, exchangeRate || null]
     );
 
     const invoice = invoiceResult.rows[0];
@@ -249,6 +251,8 @@ export const updateInvoice = async (userId, invoiceId, invoiceData) => {
     notes,
     terms,
     status,
+    currency,
+    exchangeRate,
   } = invoiceData;
 
   const fields = [];
@@ -278,6 +282,14 @@ export const updateInvoice = async (userId, invoiceId, invoiceData) => {
   if (status !== undefined) {
     fields.push(`status = $${paramIndex++}`);
     values.push(status);
+  }
+  if (currency !== undefined) {
+    fields.push(`currency = $${paramIndex++}`);
+    values.push(currency);
+  }
+  if (exchangeRate !== undefined) {
+    fields.push(`exchange_rate = $${paramIndex++}`);
+    values.push(exchangeRate || null);
   }
 
   if (fields.length === 0) {

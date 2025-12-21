@@ -157,17 +157,19 @@ export const createQuotation = async (userId, quotationData, lineItems, quotatio
       notes,
       terms,
       status = 'draft',
+      currency,
+      exchangeRate,
     } = quotationData;
 
     // Insert quotation
     const quotationResult = await client.query(
       `INSERT INTO quotations (
         number, client_id, user_id, issue_date, expiry_date,
-        notes, terms, status
+        notes, terms, status, currency, exchange_rate
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
-      [quotationNumber, clientId, userId, issueDate, expiryDate, notes || null, terms || null, status]
+      [quotationNumber, clientId, userId, issueDate, expiryDate, notes || null, terms || null, status, currency || null, exchangeRate || null]
     );
 
     const quotation = quotationResult.rows[0];
@@ -239,6 +241,8 @@ export const updateQuotation = async (userId, quotationId, quotationData) => {
     notes,
     terms,
     status,
+    currency,
+    exchangeRate,
   } = quotationData;
 
   const fields = [];
@@ -268,6 +272,14 @@ export const updateQuotation = async (userId, quotationId, quotationData) => {
   if (status !== undefined) {
     fields.push(`status = $${paramIndex++}`);
     values.push(status);
+  }
+  if (currency !== undefined) {
+    fields.push(`currency = $${paramIndex++}`);
+    values.push(currency);
+  }
+  if (exchangeRate !== undefined) {
+    fields.push(`exchange_rate = $${paramIndex++}`);
+    values.push(exchangeRate || null);
   }
 
   if (fields.length === 0) {
