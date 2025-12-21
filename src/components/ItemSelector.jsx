@@ -3,7 +3,7 @@ import { useData } from '../context/DataContext'
 import { handleApiError } from '../utils/errorHandler'
 
 export default function ItemSelector({ onSelect, onClose }) {
-  const { items, categories, loading, fetchItems, fetchCategories, createItem } = useData()
+  const { items, categories, loading, fetchItems, fetchCategories, createItem, settings, fetchSettings } = useData()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -12,7 +12,8 @@ export default function ItemSelector({ onSelect, onClose }) {
     description: '',
     rate: '',
     categoryId: '',
-    status: 'active'
+    status: 'active',
+    gstApplicable: true
   })
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState(null)
@@ -22,7 +23,11 @@ export default function ItemSelector({ onSelect, onClose }) {
     searchRef.current?.focus()
     fetchItems({ limit: 100 })
     fetchCategories({ limit: 100 })
-  }, [fetchItems, fetchCategories])
+    // Fetch settings if not already loaded
+    if (!settings) {
+      fetchSettings()
+    }
+  }, [fetchItems, fetchCategories, fetchSettings, settings])
 
   // Debounce search
   useEffect(() => {
@@ -49,14 +54,25 @@ export default function ItemSelector({ onSelect, onClose }) {
     return category?.color || '#6B7280'
   }
 
+  const getTaxRate = (gstApplicable) => {
+    if (!gstApplicable) {
+      return 0
+    }
+    // Get default tax rate from settings
+    const defaultTaxRate = settings?.defaultTax?.rate || 0
+    return defaultTaxRate
+  }
+
   const handleSelectItem = (item) => {
+    const taxRate = getTaxRate(item.gstApplicable !== false) // Default to true if not set
     onSelect({
       name: item.name,
       description: item.description,
       quantity: 1,
       price: item.rate,
       discount: 0,
-      tax: 10,
+      tax: taxRate,
+      taxPercent: taxRate,
       itemId: item.id,
       categoryId: item.categoryId
     })
@@ -72,16 +88,19 @@ export default function ItemSelector({ onSelect, onClose }) {
       const createdItem = await createItem({
         ...newItem,
         rate: parseFloat(newItem.rate) || 0,
-        categoryId: newItem.categoryId ? parseInt(newItem.categoryId) : null
+        categoryId: newItem.categoryId ? parseInt(newItem.categoryId) : null,
+        gstApplicable: newItem.gstApplicable !== false // Default to true
       })
       
+      const taxRate = getTaxRate(createdItem.gstApplicable !== false)
       onSelect({
         name: createdItem.name,
         description: createdItem.description,
         quantity: 1,
         price: createdItem.rate,
         discount: 0,
-        tax: 10,
+        tax: taxRate,
+        taxPercent: taxRate,
         itemId: createdItem.id,
         categoryId: createdItem.categoryId
       })

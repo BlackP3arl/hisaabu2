@@ -112,7 +112,7 @@ export const getItem = async (req, res) => {
 export const create = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { name, description, rate, categoryId, status = 'active' } = req.body;
+    const { name, description, rate, categoryId, status = 'active', gstApplicable = true } = req.body;
 
     // Validation
     if (!name || name.trim().length < 1 || name.trim().length > 255) {
@@ -166,6 +166,7 @@ export const create = async (req, res) => {
       rate: parseFloat(rate),
       categoryId: categoryId || null,
       status,
+      gstApplicable: gstApplicable !== false, // Default to true if not explicitly false
     });
 
     // Get full item with category info
@@ -221,7 +222,7 @@ export const update = async (req, res) => {
       );
     }
 
-    const { name, description, rate, categoryId, status } = req.body;
+    const { name, description, rate, categoryId, status, gstApplicable } = req.body;
 
     // Validation
     if (name !== undefined && (name.trim().length < 1 || name.trim().length > 255)) {
@@ -275,6 +276,7 @@ export const update = async (req, res) => {
       rate: rate !== undefined ? parseFloat(rate) : undefined,
       categoryId: categoryId !== undefined ? (categoryId || null) : undefined,
       status,
+      gstApplicable,
     });
 
     if (!updatedItem) {

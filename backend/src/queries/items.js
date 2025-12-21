@@ -110,13 +110,13 @@ export const getItemById = async (userId, itemId) => {
  * Create new item
  */
 export const createItem = async (userId, itemData) => {
-  const { name, description, rate, categoryId, status = 'active' } = itemData;
+  const { name, description, rate, categoryId, status = 'active', gstApplicable = true } = itemData;
 
   const result = await query(
-    `INSERT INTO items (name, description, rate, category_id, status, user_id)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO items (name, description, rate, category_id, status, gst_applicable, user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [name, description || null, rate, categoryId || null, status, userId]
+    [name, description || null, rate, categoryId || null, status, gstApplicable !== false, userId]
   );
 
   return result.rows[0];
@@ -126,7 +126,7 @@ export const createItem = async (userId, itemData) => {
  * Update item
  */
 export const updateItem = async (userId, itemId, itemData) => {
-  const { name, description, rate, categoryId, status } = itemData;
+  const { name, description, rate, categoryId, status, gstApplicable } = itemData;
 
   const fields = [];
   const values = [];
@@ -151,6 +151,10 @@ export const updateItem = async (userId, itemId, itemData) => {
   if (status !== undefined) {
     fields.push(`status = $${paramIndex++}`);
     values.push(status);
+  }
+  if (gstApplicable !== undefined) {
+    fields.push(`gst_applicable = $${paramIndex++}`);
+    values.push(gstApplicable !== false);
   }
 
   if (fields.length === 0) {

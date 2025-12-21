@@ -114,7 +114,7 @@ export default function InvoiceForm() {
       quantity: 1,
       price: item.rate || item.price || 0,
       discountPercent: 0,
-      taxPercent: 0,
+      taxPercent: item.taxPercent !== undefined ? item.taxPercent : (item.tax !== undefined ? item.tax : 0),
       categoryId: item.categoryId,
     }
     setFormData({ ...formData, items: [...formData.items, newItem] })
