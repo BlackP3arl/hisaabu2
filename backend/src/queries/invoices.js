@@ -127,12 +127,17 @@ export const getInvoiceById = async (userId, invoiceId) => {
 
   const invoice = invoiceResult.rows[0];
 
-  // Get line items
+  // Get line items with UOM info
   const itemsResult = await query(
-    `SELECT *
-     FROM invoice_items
-     WHERE invoice_id = $1
-     ORDER BY sort_order ASC, id ASC`,
+    `SELECT 
+      ii.*,
+      u.code as uom_code,
+      u.name as uom_name
+     FROM invoice_items ii
+     LEFT JOIN items i ON ii.item_id = i.id
+     LEFT JOIN uoms u ON i.uom_id = u.id
+     WHERE ii.invoice_id = $1
+     ORDER BY ii.sort_order ASC, ii.id ASC`,
     [invoiceId]
   );
 

@@ -72,6 +72,8 @@ export default function InvoiceForm() {
                 discountPercent: item.discountPercent || item.discount || 0,
                 taxPercent: item.taxPercent || item.tax || 0,
                 categoryId: item.categoryId,
+                uomCode: item.uomCode || 'PC',
+                uomId: item.uomId,
               })) || [],
               notes: invoiceData.notes || '',
               terms: invoiceData.terms || '',
@@ -141,6 +143,8 @@ export default function InvoiceForm() {
       discountPercent: 0,
       taxPercent: item.taxPercent !== undefined ? item.taxPercent : (item.tax !== undefined ? item.tax : 0),
       categoryId: item.categoryId,
+      uomCode: item.uomCode || 'PC',
+      uomId: item.uomId,
     }
     setFormData({ ...formData, items: [...formData.items, newItem] })
   }
@@ -487,12 +491,15 @@ export default function InvoiceForm() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-center">
-                                  <input 
-                                    type="number" 
-                                    value={item.quantity} 
-                                    onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
-                                    className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
-                                  />
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <input 
+                                      type="number" 
+                                      value={item.quantity} 
+                                      onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
+                                      className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                    />
+                                    <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input 
@@ -556,7 +563,7 @@ export default function InvoiceForm() {
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
+                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity} <span className="text-gray-400">{item.uomCode || 'PC'}</span></span>
                                 <span>x {currencySymbol}{(parseFloat(item.price) || 0).toFixed(2)}</span>
                               </div>
                               <div className="flex gap-2">

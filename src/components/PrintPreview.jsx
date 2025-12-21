@@ -404,7 +404,12 @@ export default function PrintPreview({
                               <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-center text-sm text-slate-600">{item.quantity}</td>
+                          <td className="px-4 py-4 text-center text-sm text-slate-600">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span>{item.quantity}</span>
+                              <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-4 text-right text-sm text-slate-600">{formatCurrency(item.price, documentCurrency)}</td>
                           <td className="px-4 py-4 text-right text-sm text-slate-600">{taxPercent.toFixed(2)}%</td>
                           <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">{formatCurrency(lineTotal, documentCurrency)}</td>

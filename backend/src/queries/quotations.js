@@ -127,12 +127,17 @@ export const getQuotationById = async (userId, quotationId) => {
 
   const quotation = quotationResult.rows[0];
 
-  // Get line items
+  // Get line items with UOM info
   const itemsResult = await query(
-    `SELECT *
-     FROM quotation_items
-     WHERE quotation_id = $1
-     ORDER BY sort_order ASC, id ASC`,
+    `SELECT 
+      qi.*,
+      u.code as uom_code,
+      u.name as uom_name
+     FROM quotation_items qi
+     LEFT JOIN items i ON qi.item_id = i.id
+     LEFT JOIN uoms u ON i.uom_id = u.id
+     WHERE qi.quotation_id = $1
+     ORDER BY qi.sort_order ASC, qi.id ASC`,
     [quotationId]
   );
 

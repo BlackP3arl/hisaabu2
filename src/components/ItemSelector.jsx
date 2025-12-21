@@ -97,7 +97,9 @@ export default function ItemSelector({ onSelect, onClose }) {
       tax: taxRate,
       taxPercent: taxRate,
       itemId: item.id,
-      categoryId: item.categoryId
+      categoryId: item.categoryId,
+      uomCode: item.uomCode || 'PC',
+      uomId: item.uomId
     })
     onClose()
   }
@@ -126,7 +128,9 @@ export default function ItemSelector({ onSelect, onClose }) {
         tax: taxRate,
         taxPercent: taxRate,
         itemId: createdItem.id,
-        categoryId: createdItem.categoryId
+        categoryId: createdItem.categoryId,
+        uomCode: createdItem.uomCode || 'PC',
+        uomId: createdItem.uomId
       })
       onClose()
     } catch (err) {

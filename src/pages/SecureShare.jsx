@@ -301,7 +301,12 @@ export default function SecureShare() {
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{item.description}</p>
                           )}
                         </td>
-                        <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300">{item.quantity || 1}</td>
+                        <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span>{item.quantity || 1}</span>
+                            <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
+                          </div>
+                        </td>
                         <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300">${(item.price || 0).toLocaleString()}</td>
                         <td className="px-4 py-4 text-right font-semibold text-slate-900 dark:text-white">
                           ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}

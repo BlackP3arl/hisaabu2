@@ -382,7 +382,12 @@ export default function InvoiceDetail() {
                                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{item.description}</p>
                                     )}
                                   </td>
-                                  <td className="px-4 py-4 text-center text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">{item.quantity}</td>
+                                  <td className="px-4 py-4 text-center text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span>{item.quantity}</span>
+                                      <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
+                                    </div>
+                                  </td>
                                   <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">{formatCurrency(item.price, documentCurrency)}</td>
                                   <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(itemTotal, documentCurrency)}</td>
                                 </tr>
