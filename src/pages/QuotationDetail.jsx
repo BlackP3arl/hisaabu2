@@ -346,7 +346,11 @@ export default function QuotationDetail() {
                         )}
                         {tax > 0 && (
                           <div className="flex justify-between text-sm">
-                            <span className="text-slate-500 dark:text-slate-400">Tax</span>
+                            <span className="text-slate-500 dark:text-slate-400">
+                              {companySettings?.defaultTax?.name 
+                                ? `Tax (${companySettings.defaultTax.name} ${companySettings.defaultTax.rate}%)`
+                                : 'Tax'}
+                            </span>
                             <span className="font-medium text-slate-900 dark:text-white">${tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </div>
                         )}

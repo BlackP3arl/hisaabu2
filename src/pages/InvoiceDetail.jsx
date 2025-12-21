@@ -396,7 +396,11 @@ export default function InvoiceDetail() {
                         )}
                         {totals.tax > 0 && (
                           <div className="flex justify-between text-sm">
-                            <span className="text-slate-500 dark:text-slate-400">Tax</span>
+                            <span className="text-slate-500 dark:text-slate-400">
+                              {companySettings?.defaultTax?.name 
+                                ? `Tax (${companySettings.defaultTax.name} ${companySettings.defaultTax.rate}%)`
+                                : 'Tax'}
+                            </span>
                             <span className="font-medium text-slate-900 dark:text-white">${totals.tax.toFixed(2)}</span>
                           </div>
                         )}
