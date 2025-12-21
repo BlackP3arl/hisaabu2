@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
     gst_number VARCHAR(100),
     registration_number VARCHAR(100),
     default_tax_rate DECIMAL(5,2) NOT NULL DEFAULT 10.00,
-    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    currency VARCHAR(3) NOT NULL DEFAULT 'MVR',
     date_format VARCHAR(20) NOT NULL DEFAULT 'MM/DD/YYYY',
     invoice_prefix VARCHAR(20) NOT NULL DEFAULT 'INV-',
     quotation_prefix VARCHAR(20) NOT NULL DEFAULT 'QT-',

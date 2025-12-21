@@ -51,6 +51,7 @@ import invoiceRoutes from './routes/invoices.js';
 import paymentRoutes from './routes/payments.js';
 import dashboardRoutes from './routes/dashboard.js';
 import settingsRoutes from './routes/settings.js';
+import taxRoutes from './routes/taxes.js';
 import shareLinkRoutes from './routes/shareLinks.js';
 import publicRoutes from './routes/public.js';
 import { generateQuotationPDFController, generateInvoicePDFController } from './controllers/pdfController.js';
@@ -65,6 +66,7 @@ app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/invoices', paymentRoutes); // Payments are nested under invoices
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/taxes', taxRoutes);
 app.use('/api/v1/share-links', shareLinkRoutes);
 app.use('/api/v1/public', publicRoutes);
 

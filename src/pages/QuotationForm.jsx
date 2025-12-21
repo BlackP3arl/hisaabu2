@@ -49,10 +49,10 @@ export default function QuotationForm() {
                 itemId: item.itemId,
                 name: item.name,
                 description: item.description || '',
-                quantity: item.quantity || 1,
-                price: item.price || 0,
-                discountPercent: item.discountPercent || item.discount || 0,
-                taxPercent: item.taxPercent || item.tax || 0,
+                quantity: parseFloat(item.quantity) || 1,
+                price: parseFloat(item.price) || 0,
+                discountPercent: parseFloat(item.discountPercent || item.discount || 0),
+                taxPercent: parseFloat(item.taxPercent || item.tax || 0),
                 categoryId: item.categoryId,
               })) || [],
               notes: quotationData.notes || '',
@@ -77,16 +77,24 @@ export default function QuotationForm() {
   }
 
   const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+    const subtotal = formData.items.reduce((sum, item) => {
+      const qty = parseFloat(item.quantity) || 1
+      const price = parseFloat(item.price) || 0
+      return sum + (qty * price)
+    }, 0)
     const discount = formData.items.reduce((sum, item) => {
-      const itemDiscount = item.discountPercent || item.discount || 0
-      return sum + (item.quantity * item.price * itemDiscount / 100)
+      const qty = parseFloat(item.quantity) || 1
+      const price = parseFloat(item.price) || 0
+      const itemDiscount = parseFloat(item.discountPercent || item.discount || 0)
+      return sum + (qty * price * itemDiscount / 100)
     }, 0)
     const afterDiscount = subtotal - discount
     const tax = formData.items.reduce((sum, item) => {
-      const itemDiscount = item.discountPercent || item.discount || 0
-      const itemTax = item.taxPercent || item.tax || 0
-      const itemTotal = item.quantity * item.price * (1 - itemDiscount / 100)
+      const qty = parseFloat(item.quantity) || 1
+      const price = parseFloat(item.price) || 0
+      const itemDiscount = parseFloat(item.discountPercent || item.discount || 0)
+      const itemTax = parseFloat(item.taxPercent || item.tax || 0)
+      const itemTotal = qty * price * (1 - itemDiscount / 100)
       return sum + (itemTotal * itemTax / 100)
     }, 0)
     const total = afterDiscount + tax
@@ -101,7 +109,7 @@ export default function QuotationForm() {
       name: item.name,
       description: item.description || '',
       quantity: 1,
-      price: item.rate || item.price || 0,
+      price: parseFloat(item.rate || item.price || 0),
       discountPercent: 0,
       taxPercent: 0,
       categoryId: item.categoryId,
@@ -115,8 +123,12 @@ export default function QuotationForm() {
       newItems[index] = { ...newItems[index], discountPercent: parseFloat(value) || 0 }
     } else if (field === 'tax' || field === 'taxPercent') {
       newItems[index] = { ...newItems[index], taxPercent: parseFloat(value) || 0 }
+    } else if (field === 'price') {
+      newItems[index] = { ...newItems[index], price: parseFloat(value) || 0 }
+    } else if (field === 'quantity') {
+      newItems[index] = { ...newItems[index], quantity: parseFloat(value) || 1 }
     } else {
-      newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+      newItems[index] = { ...newItems[index], [field]: value }
     }
     setFormData({ ...formData, items: newItems })
   }
@@ -403,7 +415,7 @@ export default function QuotationForm() {
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  ${(item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
+                                  ${((parseFloat(item.quantity) || 1) * (parseFloat(item.price) || 0) * (1 - (parseFloat(item.discountPercent || item.discount || 0)) / 100) * (1 + (parseFloat(item.taxPercent || item.tax || 0)) / 100)).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button 
@@ -441,7 +453,7 @@ export default function QuotationForm() {
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                 <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
-                                <span>x ${item.price.toFixed(2)}</span>
+                                <span>x ${(parseFloat(item.price) || 0).toFixed(2)}</span>
                               </div>
                               <div className="flex gap-2">
                                 <button 

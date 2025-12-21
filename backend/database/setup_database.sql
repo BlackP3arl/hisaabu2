@@ -23,6 +23,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 \i migrations/010_create_company_settings_table.sql
 \i migrations/011_create_share_links_table.sql
 \i migrations/012_add_foreign_keys.sql
+\i migrations/013_create_taxes_table.sql
+\i migrations/014_add_default_tax_id_to_company_settings.sql
+\i migrations/015_add_document_taxes_to_invoices_quotations.sql
 
 -- Create trigger functions
 \i triggers/update_updated_at.sql

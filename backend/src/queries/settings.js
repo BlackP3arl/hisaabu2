@@ -89,6 +89,7 @@ export const updateSettings = async (userId, settingsData) => {
     gstNumber: 'gst_number',
     registrationNumber: 'registration_number',
     defaultTaxRate: 'default_tax_rate',
+    defaultTaxId: 'default_tax_id',
     currency: 'currency',
     dateFormat: 'date_format',
     invoicePrefix: 'invoice_prefix',
@@ -98,9 +99,16 @@ export const updateSettings = async (userId, settingsData) => {
   };
 
   for (const [key, value] of Object.entries(settingsData)) {
+    // Include field if it exists in fieldMap and is not undefined
+    // Note: We allow null and empty strings to be saved (null for optional fields, empty string for text fields)
     if (value !== undefined && fieldMap[key]) {
       fields.push(`${fieldMap[key]} = $${paramIndex++}`);
-      values.push(value);
+      // Convert empty strings to null for optional fields (except company_name which is required)
+      if (value === '' && key !== 'companyName') {
+        values.push(null);
+      } else {
+        values.push(value);
+      }
     }
   }
 
@@ -121,6 +129,11 @@ export const updateSettings = async (userId, settingsData) => {
        RETURNING *`,
       values
     );
+    
+    if (!result.rows || result.rows.length === 0) {
+      throw new Error('Failed to update company settings - no rows affected');
+    }
+    
     return result.rows[0];
   } else {
     // Create new settings with provided values and defaults
@@ -139,7 +152,7 @@ export const updateSettings = async (userId, settingsData) => {
         else if (key === 'invoicePrefix') allValues.push('INV-');
         else if (key === 'quotationPrefix') allValues.push('QT-');
         else if (key === 'defaultTaxRate') allValues.push(10.00);
-        else if (key === 'currency') allValues.push('USD');
+        else if (key === 'currency') allValues.push('MVR');
         else if (key === 'dateFormat') allValues.push('MM/DD/YYYY');
         else if (key === 'taxPerItemEnabled') allValues.push(true);
         else allValues.push(null);

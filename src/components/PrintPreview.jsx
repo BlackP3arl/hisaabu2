@@ -432,7 +432,7 @@ export default function PrintPreview({
                   <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-400">{companySettings?.currency || 'USD'}</span>
+                  <span className="text-xs text-slate-400">{companySettings?.currency || 'MVR'}</span>
                 </div>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { getOrCreateSettings, updateSettings } from '../queries/settings.js';
+import { getTaxes, getDefaultTax, initializeDefaultGST } from '../queries/taxes.js';
 import { successResponse, errorResponse, toCamelCase } from '../utils/response.js';
 
 /**
@@ -10,9 +11,20 @@ export const getSettings = async (req, res) => {
     const userId = req.user.userId;
 
     const settings = await getOrCreateSettings(userId);
+    
+    // Initialize default GST if no taxes exist
+    await initializeDefaultGST(userId);
+    
+    // Get all taxes and default tax
+    const taxes = await getTaxes(userId);
+    const defaultTax = taxes.find(tax => tax.id === settings.default_tax_id) || null;
 
     // Transform to camelCase
     const transformed = toCamelCase(settings);
+    if (defaultTax) {
+      transformed.defaultTax = toCamelCase(defaultTax);
+    }
+    transformed.taxes = taxes.map(tax => toCamelCase(tax));
 
     return successResponse(
       res,
@@ -96,6 +108,16 @@ export const update = async (req, res) => {
     }
 
     const updatedSettings = await updateSettings(userId, settingsData);
+
+    if (!updatedSettings) {
+      return errorResponse(
+        res,
+        'UPDATE_ERROR',
+        'Failed to update company settings',
+        null,
+        500
+      );
+    }
 
     // Transform to camelCase
     const transformed = toCamelCase(updatedSettings);

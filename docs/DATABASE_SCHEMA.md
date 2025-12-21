@@ -23,6 +23,8 @@ erDiagram
     invoices ||--o{ share_links : "has secure link"
     quotations ||--o{ share_links : "has secure link"
     company_settings ||--|| users : "belongs to"
+    company_settings }o--|| taxes : "has default"
+    taxes }o--|| users : "belongs to"
 
     users {
         int id PK
@@ -85,6 +87,7 @@ erDiagram
         decimal subtotal
         decimal discount_total
         decimal tax_total
+        jsonb document_taxes
         decimal total_amount
         text notes
         text terms
@@ -117,6 +120,7 @@ erDiagram
         decimal subtotal
         decimal discount_total
         decimal tax_total
+        jsonb document_taxes
         decimal total_amount
         decimal amount_paid
         decimal balance_due
@@ -166,12 +170,23 @@ erDiagram
         string gst_number
         string registration_number
         decimal default_tax_rate
+        int default_tax_id FK
         string currency
         string date_format
         string invoice_prefix
         string quotation_prefix
         text terms_template
         boolean tax_per_item_enabled
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    taxes {
+        int id PK
+        int user_id FK
+        string name
+        decimal rate
+        boolean is_default
         timestamp created_at
         timestamp updated_at
     }

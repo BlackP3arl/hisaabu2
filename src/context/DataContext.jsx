@@ -621,6 +621,81 @@ export function DataProvider({ children }) {
     }
   }, [])
 
+  // ==================== TAXES ====================
+
+  const [taxes, setTaxes] = useState([])
+
+  const fetchTaxes = useCallback(async () => {
+    setLoadingState('taxes', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.get('/taxes')
+      if (data.success) {
+        setTaxes(data.data.taxes || [])
+        return data.data.taxes || []
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('taxes', false)
+    }
+  }, [])
+
+  const createTax = useCallback(async (taxData) => {
+    setLoadingState('tax', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.post('/taxes', taxData)
+      if (data.success) {
+        const newTax = data.data.tax
+        setTaxes(prev => [...prev, newTax])
+        return newTax
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('tax', false)
+    }
+  }, [])
+
+  const updateTax = useCallback(async (id, updates) => {
+    setLoadingState('tax', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.put(`/taxes/${id}`, updates)
+      if (data.success) {
+        const updatedTax = data.data.tax
+        setTaxes(prev => prev.map(t => t.id === id ? updatedTax : t))
+        return updatedTax
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('tax', false)
+    }
+  }, [])
+
+  const deleteTax = useCallback(async (id) => {
+    setLoadingState('tax', true)
+    setError(null)
+    try {
+      await apiClient.delete(`/taxes/${id}`)
+      setTaxes(prev => prev.filter(t => t.id !== id))
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('tax', false)
+    }
+  }, [])
+
   // ==================== DASHBOARD ====================
 
   const fetchDashboardStats = useCallback(async () => {
@@ -793,6 +868,12 @@ export function DataProvider({ children }) {
       companySettings,
       // Dashboard
       fetchDashboardStats,
+      // Taxes
+      taxes,
+      fetchTaxes,
+      createTax,
+      updateTax,
+      deleteTax,
       // Share Links
       generateShareLink,
       getShareLink,

@@ -511,6 +511,27 @@ lineTotal = (quantity × price × (1 - discountPercent/100)) × (1 + taxPercent/
   "gstNumber": "GST-12345",
   "registrationNumber": "REG-12345",
   "defaultTaxRate": 10.00,
+  "defaultTaxId": 1,
+  "defaultTax": {
+    "id": 1,
+    "name": "GST",
+    "rate": 10.00,
+    "isDefault": true
+  },
+  "taxes": [
+    {
+      "id": 1,
+      "name": "GST",
+      "rate": 10.00,
+      "isDefault": true
+    },
+    {
+      "id": 2,
+      "name": "Service Tax",
+      "rate": 5.00,
+      "isDefault": false
+    }
+  ],
   "currency": "USD",
   "dateFormat": "MM/DD/YYYY",
   "invoicePrefix": "INV-",
