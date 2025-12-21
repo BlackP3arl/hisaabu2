@@ -6,6 +6,7 @@ const navItems = [
   { path: '/quotations', icon: 'request_quote', label: 'Quotations' },
   { path: '/clients', icon: 'group', label: 'Clients' },
   { path: '/items', icon: 'inventory_2', label: 'Items' },
+  { path: '/uoms', icon: 'straighten', label: 'Units' },
   { path: '/settings', icon: 'settings', label: 'Settings' },
 ]
 

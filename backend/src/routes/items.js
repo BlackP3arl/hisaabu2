@@ -32,6 +32,10 @@ const createItemValidation = [
     .optional()
     .isInt()
     .withMessage('Category ID must be an integer'),
+  body('uomId')
+    .optional()
+    .isInt()
+    .withMessage('UOM ID must be an integer'),
   body('description')
     .optional()
     .trim(),
@@ -55,6 +59,10 @@ const updateItemValidation = [
     .optional()
     .isInt()
     .withMessage('Category ID must be an integer'),
+  body('uomId')
+    .optional()
+    .isInt()
+    .withMessage('UOM ID must be an integer'),
   body('description')
     .optional()
     .trim(),

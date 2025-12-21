@@ -190,7 +190,7 @@ export default function ItemsList() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-bold text-slate-900 dark:text-white">${item.rate?.toLocaleString() || '0'}</span>
-                        <span className="text-xs text-slate-400 ml-1">/piece</span>
+                        <span className="text-xs text-slate-400 ml-1">/{item.uomCode || 'PC'}</span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center">
@@ -328,7 +328,7 @@ export default function ItemsList() {
                   </span>
                   <div className="flex flex-col items-end">
                     <span className="text-lg font-bold text-slate-900 dark:text-white">${item.rate || '0'}</span>
-                    <span className="text-xs text-slate-400">/piece</span>
+                    <span className="text-xs text-slate-400">/{item.uomCode || 'PC'}</span>
                   </div>
                 </div>
               </div>

@@ -46,6 +46,7 @@ import authRoutes from './routes/auth.js';
 import clientRoutes from './routes/clients.js';
 import categoryRoutes from './routes/categories.js';
 import itemRoutes from './routes/items.js';
+import uomRoutes from './routes/uoms.js';
 import quotationRoutes from './routes/quotations.js';
 import invoiceRoutes from './routes/invoices.js';
 import paymentRoutes from './routes/payments.js';
@@ -61,6 +62,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/clients', clientRoutes);
 app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/items', itemRoutes);
+app.use('/api/v1/uoms', uomRoutes);
 app.use('/api/v1/quotations', quotationRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/invoices', paymentRoutes); // Payments are nested under invoices

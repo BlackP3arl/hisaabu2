@@ -10,6 +10,7 @@ export function DataProvider({ children }) {
   // State - all data starts as empty arrays
   const [clients, setClients] = useState([])
   const [categories, setCategories] = useState([])
+  const [uoms, setUoms] = useState([])
   const [items, setItems] = useState([])
   const [quotations, setQuotations] = useState([])
   const [invoices, setInvoices] = useState([])
@@ -204,6 +205,95 @@ export function DataProvider({ children }) {
       throw err
     } finally {
       setLoadingState('category', false)
+    }
+  }, [])
+
+  // ==================== UOMS ====================
+
+  const fetchUoms = useCallback(async () => {
+    setLoadingState('uoms', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.get('/uoms')
+      if (data.success) {
+        setUoms(data.data.uoms || [])
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('uoms', false)
+    }
+  }, [])
+
+  const getUom = useCallback(async (id) => {
+    setLoadingState('uom', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.get(`/uoms/${id}`)
+      if (data.success) {
+        return data.data.uom
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('uom', false)
+    }
+  }, [])
+
+  const createUom = useCallback(async (uomData) => {
+    setLoadingState('uom', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.post('/uoms', uomData)
+      if (data.success) {
+        const newUom = data.data.uom
+        setUoms(prev => [...prev, newUom])
+        return newUom
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('uom', false)
+    }
+  }, [])
+
+  const updateUom = useCallback(async (id, updates) => {
+    setLoadingState('uom', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.put(`/uoms/${id}`, updates)
+      if (data.success) {
+        const updatedUom = data.data.uom
+        setUoms(prev => prev.map(u => u.id === id ? updatedUom : u))
+        return updatedUom
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('uom', false)
+    }
+  }, [])
+
+  const deleteUom = useCallback(async (id) => {
+    setLoadingState('uom', true)
+    setError(null)
+    try {
+      await apiClient.delete(`/uoms/${id}`)
+      setUoms(prev => prev.filter(u => u.id !== id))
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('uom', false)
     }
   }, [])
 
@@ -808,6 +898,7 @@ export function DataProvider({ children }) {
       // Data
       clients,
       categories,
+      uoms,
       items,
       quotations,
       invoices,
@@ -831,6 +922,12 @@ export function DataProvider({ children }) {
       updateCategory,
       deleteCategory,
       addCategory, // Legacy
+      // UOMs
+      fetchUoms,
+      getUom,
+      createUom,
+      updateUom,
+      deleteUom,
       // Items
       fetchItems,
       getItem,

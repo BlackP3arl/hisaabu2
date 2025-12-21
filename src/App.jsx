@@ -16,6 +16,8 @@ import ItemsList from './pages/ItemsList'
 import ItemForm from './pages/ItemForm'
 import CategoriesList from './pages/CategoriesList'
 import CategoryForm from './pages/CategoryForm'
+import UOMsList from './pages/UOMsList'
+import UOMForm from './pages/UOMForm'
 import Settings from './pages/Settings'
 import SecureShare from './pages/SecureShare'
 import { DataProvider } from './context/DataContext'
@@ -89,6 +91,9 @@ function App() {
               <Route path="/categories" element={<CategoriesList />} />
               <Route path="/categories/new" element={<CategoryForm />} />
               <Route path="/categories/:id" element={<CategoryForm />} />
+              <Route path="/uoms" element={<UOMsList />} />
+              <Route path="/uoms/new" element={<UOMForm />} />
+              <Route path="/uoms/:id" element={<UOMForm />} />
               <Route path="/settings" element={<Settings />} />
             </>
           ) : (

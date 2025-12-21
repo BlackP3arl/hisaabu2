@@ -6,7 +6,7 @@ import Sidebar from '../components/Sidebar'
 export default function ItemForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getItem, createItem, updateItem, fetchCategories, categories, companySettings, fetchCompanySettings, loading } = useData()
+  const { getItem, createItem, updateItem, fetchCategories, categories, fetchUoms, uoms, companySettings, fetchCompanySettings, loading } = useData()
   const [item, setItem] = useState(null)
   const [formError, setFormError] = useState(null)
 
@@ -15,18 +15,20 @@ export default function ItemForm() {
     description: '',
     rate: '',
     categoryId: '',
+    uomId: 1, // Default to Pieces (PC)
     status: 'active',
     gstApplicable: true,
   })
 
-  // Load categories and settings on mount
+  // Load categories, UOMs and settings on mount
   useEffect(() => {
     fetchCategories()
+    fetchUoms()
     // Fetch settings if not already loaded
     if (!companySettings) {
       fetchCompanySettings()
     }
-  }, [fetchCategories, fetchCompanySettings, companySettings])
+  }, [fetchCategories, fetchUoms, fetchCompanySettings, companySettings])
 
   // Load item data if editing
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function ItemForm() {
               description: itemData.description || '',
               rate: itemData.rate || '',
               categoryId: itemData.categoryId || '',
+              uomId: itemData.uomId || 1, // Default to Pieces (PC)
               status: itemData.status || 'active',
               gstApplicable: itemData.gstApplicable !== false, // Default to true if not set
             })
@@ -59,6 +62,7 @@ export default function ItemForm() {
       ...formData,
       rate: parseFloat(formData.rate) || 0,
       categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
+      uomId: formData.uomId ? parseInt(formData.uomId) : 1, // Default to 1 (Pieces)
     }
     try {
       if (id) {
@@ -186,7 +190,7 @@ export default function ItemForm() {
                   {formData.rate && (
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">{currencySymbol}{parseFloat(formData.rate).toLocaleString()}</p>
-                      <p className="text-xs text-slate-400">/piece</p>
+                      <p className="text-xs text-slate-400">/{uoms.find(u => u.id === parseInt(formData.uomId || 1))?.code || 'PC'}</p>
                     </div>
                   )}
                 </div>
@@ -240,8 +244,22 @@ export default function ItemForm() {
                         placeholder="0.00"
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 pl-8 pr-16"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">/piece</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                        /{uoms.find(u => u.id === parseInt(formData.uomId || 1))?.code || 'PC'}
+                      </span>
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Unit of Measure</label>
+                    <select
+                      value={formData.uomId || 1}
+                      onChange={(e) => setFormData({ ...formData, uomId: e.target.value })}
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                    >
+                      {uoms.map(uom => (
+                        <option key={uom.id} value={uom.id}>{uom.name} ({uom.code})</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category *</label>

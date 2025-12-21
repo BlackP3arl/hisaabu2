@@ -59,14 +59,17 @@ export const getItems = async (userId, filters = {}) => {
   const countResult = await query(countQuery, params);
   const total = parseInt(countResult.rows[0].total);
 
-  // Get items with category info
+  // Get items with category and UOM info
   const itemsQuery = `
     SELECT 
       i.*,
       c.name as category_name,
-      c.color as category_color
+      c.color as category_color,
+      u.name as uom_name,
+      u.code as uom_code
     FROM items i
     LEFT JOIN categories c ON i.category_id = c.id
+    LEFT JOIN uoms u ON i.uom_id = u.id
     ${whereClause}
     ORDER BY i.${sortField} ${sortOrder}
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -96,9 +99,12 @@ export const getItemById = async (userId, itemId) => {
     `SELECT 
       i.*,
       c.name as category_name,
-      c.color as category_color
+      c.color as category_color,
+      u.name as uom_name,
+      u.code as uom_code
     FROM items i
     LEFT JOIN categories c ON i.category_id = c.id
+    LEFT JOIN uoms u ON i.uom_id = u.id
     WHERE i.id = $1 AND i.user_id = $2`,
     [itemId, userId]
   );
@@ -110,13 +116,16 @@ export const getItemById = async (userId, itemId) => {
  * Create new item
  */
 export const createItem = async (userId, itemData) => {
-  const { name, description, rate, categoryId, status = 'active', gstApplicable = true } = itemData;
+  const { name, description, rate, categoryId, status = 'active', gstApplicable = true, uomId } = itemData;
+
+  // Default to UOM ID 1 (Pieces/PC) if not provided
+  const finalUomId = uomId || 1;
 
   const result = await query(
-    `INSERT INTO items (name, description, rate, category_id, status, gst_applicable, user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO items (name, description, rate, category_id, status, gst_applicable, uom_id, user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [name, description || null, rate || null, categoryId || null, status, gstApplicable !== false, userId]
+    [name, description || null, rate || null, categoryId || null, status, gstApplicable !== false, finalUomId, userId]
   );
 
   return result.rows[0];
@@ -126,7 +135,7 @@ export const createItem = async (userId, itemData) => {
  * Update item
  */
 export const updateItem = async (userId, itemId, itemData) => {
-  const { name, description, rate, categoryId, status, gstApplicable } = itemData;
+  const { name, description, rate, categoryId, status, gstApplicable, uomId } = itemData;
 
   const fields = [];
   const values = [];
@@ -155,6 +164,10 @@ export const updateItem = async (userId, itemId, itemData) => {
   if (gstApplicable !== undefined) {
     fields.push(`gst_applicable = $${paramIndex++}`);
     values.push(gstApplicable !== false);
+  }
+  if (uomId !== undefined) {
+    fields.push(`uom_id = $${paramIndex++}`);
+    values.push(uomId || 1); // Default to 1 if null
   }
 
   if (fields.length === 0) {

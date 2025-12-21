@@ -6,6 +6,7 @@ import {
   deleteItem,
   verifyCategoryOwnership,
 } from '../queries/items.js';
+import { verifyUomExists } from '../queries/uoms.js';
 import { successResponse, errorResponse, toCamelCase, toCamelCaseArray } from '../utils/response.js';
 import { isValidItemStatus } from '../utils/validators.js';
 
@@ -28,12 +29,16 @@ export const listItems = async (req, res) => {
 
     const result = await getItems(userId, filters);
 
-    // Transform items to include category info in camelCase
+    // Transform items to include category and UOM info in camelCase
     const transformedItems = result.items.map(item => {
       const transformed = toCamelCase(item);
       if (item.category_name) {
         transformed.categoryName = item.category_name;
         transformed.categoryColor = item.category_color;
+      }
+      if (item.uom_name) {
+        transformed.uomName = item.uom_name;
+        transformed.uomCode = item.uom_code;
       }
       return transformed;
     });
@@ -84,11 +89,15 @@ export const getItem = async (req, res) => {
       );
     }
 
-    // Transform to include category info
+    // Transform to include category and UOM info
     const transformed = toCamelCase(item);
     if (item.category_name) {
       transformed.categoryName = item.category_name;
       transformed.categoryColor = item.category_color;
+    }
+    if (item.uom_name) {
+      transformed.uomName = item.uom_name;
+      transformed.uomCode = item.uom_code;
     }
 
     return successResponse(
@@ -112,7 +121,7 @@ export const getItem = async (req, res) => {
 export const create = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { name, description, rate, categoryId, status = 'active', gstApplicable = true } = req.body;
+    const { name, description, rate, categoryId, status = 'active', gstApplicable = true, uomId } = req.body;
 
     // Validation
     if (!name || name.trim().length < 1 || name.trim().length > 255) {
@@ -161,6 +170,20 @@ export const create = async (req, res) => {
       }
     }
 
+    // Verify UOM exists if uomId is provided
+    if (uomId) {
+      const uomExists = await verifyUomExists(uomId);
+      if (!uomExists) {
+        return errorResponse(
+          res,
+          'NOT_FOUND',
+          'UOM not found',
+          null,
+          404
+        );
+      }
+    }
+
     // Create item
     const item = await createItem(userId, {
       name: name.trim(),
@@ -169,14 +192,19 @@ export const create = async (req, res) => {
       categoryId: categoryId || null,
       status,
       gstApplicable: gstApplicable !== false, // Default to true if not explicitly false
+      uomId: uomId || null, // Will default to 1 in query if null
     });
 
-    // Get full item with category info
+    // Get full item with category and UOM info
     const fullItem = await getItemById(userId, item.id);
     const transformed = toCamelCase(fullItem);
     if (fullItem.category_name) {
       transformed.categoryName = fullItem.category_name;
       transformed.categoryColor = fullItem.category_color;
+    }
+    if (fullItem.uom_name) {
+      transformed.uomName = fullItem.uom_name;
+      transformed.uomCode = fullItem.uom_code;
     }
 
     return successResponse(
@@ -224,7 +252,7 @@ export const update = async (req, res) => {
       );
     }
 
-    const { name, description, rate, categoryId, status, gstApplicable } = req.body;
+    const { name, description, rate, categoryId, status, gstApplicable, uomId } = req.body;
 
     // Validation
     if (name !== undefined && (name.trim().length < 1 || name.trim().length > 255)) {
@@ -271,6 +299,20 @@ export const update = async (req, res) => {
       }
     }
 
+    // Verify UOM exists if uomId is being updated
+    if (uomId !== undefined && uomId !== null) {
+      const uomExists = await verifyUomExists(uomId);
+      if (!uomExists) {
+        return errorResponse(
+          res,
+          'NOT_FOUND',
+          'UOM not found',
+          null,
+          404
+        );
+      }
+    }
+
     // Update item
     const updatedItem = await updateItem(userId, itemId, {
       name: name?.trim(),
@@ -279,6 +321,7 @@ export const update = async (req, res) => {
       categoryId: categoryId !== undefined ? (categoryId || null) : undefined,
       status,
       gstApplicable,
+      uomId: uomId !== undefined ? (uomId || null) : undefined,
     });
 
     if (!updatedItem) {
@@ -291,12 +334,16 @@ export const update = async (req, res) => {
       );
     }
 
-    // Get full item with category info
+    // Get full item with category and UOM info
     const fullItem = await getItemById(userId, itemId);
     const transformed = toCamelCase(fullItem);
     if (fullItem.category_name) {
       transformed.categoryName = fullItem.category_name;
       transformed.categoryColor = fullItem.category_color;
+    }
+    if (fullItem.uom_name) {
+      transformed.uomName = fullItem.uom_name;
+      transformed.uomCode = fullItem.uom_code;
     }
 
     return successResponse(
