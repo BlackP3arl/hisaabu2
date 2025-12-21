@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
@@ -9,23 +9,67 @@ import PrintPreview from '../components/PrintPreview'
 export default function QuotationForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { quotations, clients, categories, addQuotation, updateQuotation } = useData()
-  const quotation = id ? quotations.find(q => q.id === parseInt(id)) : null
+  const { getQuotation, createQuotation, updateQuotation, fetchCategories, categories, fetchClients, clients, loading } = useData()
+  const [quotation, setQuotation] = useState(null)
+  const [formError, setFormError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const [showItemSelector, setShowItemSelector] = useState(false)
   const [showClientSelector, setShowClientSelector] = useState(false)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [formData, setFormData] = useState({
-    clientId: quotation?.clientId || '',
-    date: quotation?.date || new Date().toISOString().split('T')[0],
-    expiry: quotation?.expiry || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    items: quotation?.items?.length > 0 ? quotation.items : [],
-    notes: quotation?.notes || '',
-    terms: quotation?.terms || '',
+    clientId: '',
+    issueDate: new Date().toISOString().split('T')[0],
+    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    items: [],
+    notes: '',
+    terms: '',
+    status: 'draft',
   })
 
+  // Load categories and clients on mount
+  useEffect(() => {
+    fetchCategories()
+    fetchClients()
+  }, [fetchCategories, fetchClients])
+
+  // Load quotation data if editing
+  useEffect(() => {
+    if (id) {
+      const loadQuotation = async () => {
+        try {
+          const quotationData = await getQuotation(parseInt(id))
+          if (quotationData) {
+            setQuotation(quotationData)
+            setFormData({
+              clientId: quotationData.clientId || '',
+              issueDate: quotationData.issueDate || quotationData.date || new Date().toISOString().split('T')[0],
+              expiryDate: quotationData.expiryDate || quotationData.expiry || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              items: quotationData.items?.map(item => ({
+                itemId: item.itemId,
+                name: item.name,
+                description: item.description || '',
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                discountPercent: item.discountPercent || item.discount || 0,
+                taxPercent: item.taxPercent || item.tax || 0,
+                categoryId: item.categoryId,
+              })) || [],
+              notes: quotationData.notes || '',
+              terms: quotationData.terms || '',
+              status: quotationData.status || 'draft',
+            })
+          }
+        } catch (err) {
+          setFormError('Failed to load quotation data')
+        }
+      }
+      loadQuotation()
+    }
+  }, [id, getQuotation])
+
   const client = clients.find(c => c.id === formData.clientId)
-  const number = quotation?.number || `#Q-2024-${String(quotations.length + 1).padStart(3, '0')}`
+  const number = quotation?.number || ''
 
   const getCategoryColor = (categoryId) => {
     const category = categories.find(c => c.id === categoryId)
@@ -34,11 +78,16 @@ export default function QuotationForm() {
 
   const calculateTotals = () => {
     const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-    const discount = formData.items.reduce((sum, item) => sum + (item.quantity * item.price * item.discount / 100), 0)
+    const discount = formData.items.reduce((sum, item) => {
+      const itemDiscount = item.discountPercent || item.discount || 0
+      return sum + (item.quantity * item.price * itemDiscount / 100)
+    }, 0)
     const afterDiscount = subtotal - discount
     const tax = formData.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.price * (1 - item.discount / 100)
-      return sum + (itemTotal * item.tax / 100)
+      const itemDiscount = item.discountPercent || item.discount || 0
+      const itemTax = item.taxPercent || item.tax || 0
+      const itemTotal = item.quantity * item.price * (1 - itemDiscount / 100)
+      return sum + (itemTotal * itemTax / 100)
     }, 0)
     const total = afterDiscount + tax
     return { subtotal, discount, tax, total }
@@ -47,12 +96,28 @@ export default function QuotationForm() {
   const { subtotal, discount, tax, total } = calculateTotals()
 
   const handleAddItem = (item) => {
-    setFormData({ ...formData, items: [...formData.items, item] })
+    const newItem = {
+      itemId: item.id,
+      name: item.name,
+      description: item.description || '',
+      quantity: 1,
+      price: item.rate || item.price || 0,
+      discountPercent: 0,
+      taxPercent: 0,
+      categoryId: item.categoryId,
+    }
+    setFormData({ ...formData, items: [...formData.items, newItem] })
   }
 
   const handleUpdateItem = (index, field, value) => {
     const newItems = [...formData.items]
-    newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+    if (field === 'discount' || field === 'discountPercent') {
+      newItems[index] = { ...newItems[index], discountPercent: parseFloat(value) || 0 }
+    } else if (field === 'tax' || field === 'taxPercent') {
+      newItems[index] = { ...newItems[index], taxPercent: parseFloat(value) || 0 }
+    } else {
+      newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+    }
     setFormData({ ...formData, items: newItems })
   }
 
@@ -75,20 +140,46 @@ export default function QuotationForm() {
     return colors[index]
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setFormError(null)
+    if (!formData.clientId) {
+      setFormError('Please select a client')
+      return
+    }
+    if (formData.items.length === 0) {
+      setFormError('Please add at least one item')
+      return
+    }
+
+    setSubmitting(true)
     const data = {
-      ...formData,
-      number,
-      amount: total,
-      clientName: client?.name || '',
-      status: quotation?.status || 'draft',
+      clientId: parseInt(formData.clientId),
+      issueDate: formData.issueDate,
+      expiryDate: formData.expiryDate,
+      items: formData.items.map(item => ({
+        itemId: item.itemId,
+        quantity: item.quantity,
+        price: item.price,
+        discountPercent: item.discountPercent || 0,
+        taxPercent: item.taxPercent || 0,
+      })),
+      notes: formData.notes,
+      terms: formData.terms,
+      status: formData.status,
     }
-    if (id) {
-      updateQuotation(parseInt(id), data)
-    } else {
-      addQuotation(data)
+
+    try {
+      if (id) {
+        await updateQuotation(parseInt(id), data)
+      } else {
+        await createQuotation(data)
+      }
+      navigate('/quotations')
+    } catch (err) {
+      setFormError(err.response?.data?.error?.message || 'Failed to save quotation')
+    } finally {
+      setSubmitting(false)
     }
-    navigate('/quotations')
   }
 
   return (
@@ -122,9 +213,22 @@ export default function QuotationForm() {
               <span className="material-symbols-outlined text-[20px]">download</span>
               PDF
             </button>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-              <span className="material-symbols-outlined text-[20px]">send</span>
-              Send Quotation
+            <button 
+              onClick={handleSave} 
+              disabled={submitting}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">send</span>
+                  Send Quotation
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -142,6 +246,20 @@ export default function QuotationForm() {
 
         {/* Content */}
         <div className="flex-1 p-4 lg:p-8">
+          {formError && (
+            <div className="max-w-6xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+              <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+            </div>
+          )}
+          {id && loading.quotation && !quotation && !formError && (
+            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
+              <div className="text-center">
+                <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+                <p className="text-slate-500 dark:text-slate-400">Loading quotation data...</p>
+              </div>
+            </div>
+          )}
+          {(!id || quotation) && (
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Left Column - Main Form */}
@@ -164,8 +282,8 @@ export default function QuotationForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        value={formData.issueDate}
+                        onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -173,8 +291,8 @@ export default function QuotationForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.expiry}
-                        onChange={(e) => setFormData({ ...formData, expiry: e.target.value })}
+                        value={formData.expiryDate}
+                        onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
                       />
                     </label>
                   </div>
@@ -271,21 +389,21 @@ export default function QuotationForm() {
                                 <td className="px-4 py-3 text-right">
                                   <input 
                                     type="number" 
-                                    value={item.discount} 
-                                    onChange={(e) => handleUpdateItem(index, 'discount', e.target.value)}
+                                    value={item.discountPercent || item.discount || 0} 
+                                    onChange={(e) => handleUpdateItem(index, 'discountPercent', e.target.value)}
                                     className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input 
                                     type="number" 
-                                    value={item.tax} 
-                                    onChange={(e) => handleUpdateItem(index, 'tax', e.target.value)}
+                                    value={item.taxPercent || item.tax || 0} 
+                                    onChange={(e) => handleUpdateItem(index, 'taxPercent', e.target.value)}
                                     className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  ${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}
+                                  ${(item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button 
@@ -318,7 +436,7 @@ export default function QuotationForm() {
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</p>
                                 </div>
                               </div>
-                              <span className="font-bold text-gray-900 dark:text-white text-sm">${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}</span>
+                              <span className="font-bold text-gray-900 dark:text-white text-sm">${(item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
@@ -407,19 +525,52 @@ export default function QuotationForm() {
 
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
-                    <button onClick={handleSave} className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">send</span>
-                      Send Quotation
+                    <button 
+                      onClick={() => {
+                        setFormData({ ...formData, status: 'sent' })
+                        handleSave()
+                      }}
+                      disabled={submitting}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[20px]">send</span>
+                          Send Quotation
+                        </>
+                      )}
                     </button>
-                    <button className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">save</span>
-                      Save as Draft
+                    <button 
+                      onClick={() => {
+                        setFormData({ ...formData, status: 'draft' })
+                        handleSave()
+                      }}
+                      disabled={submitting}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[20px]">save</span>
+                          Save as Draft
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Mobile Bottom Bar */}
@@ -432,9 +583,25 @@ export default function QuotationForm() {
               <span className="material-symbols-outlined text-[20px]">visibility</span>
               Preview
             </button>
-            <button onClick={handleSave} className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
-              <span className="material-symbols-outlined text-[20px]">send</span>
-              Send Quotation
+            <button 
+              onClick={() => {
+                setFormData({ ...formData, status: 'sent' })
+                handleSave()
+              }}
+              disabled={submitting}
+              className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">send</span>
+                  Send Quotation
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -464,9 +631,11 @@ export default function QuotationForm() {
           data={{
             ...formData,
             id: id ? parseInt(id) : null,
-            number,
-            status: quotation?.status || 'draft',
-            amount: formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
+            number: quotation?.number || number,
+            status: formData.status,
+            amount: total,
+            date: formData.issueDate,
+            expiry: formData.expiryDate,
           }}
           client={client}
           onClose={() => setShowPrintPreview(false)}

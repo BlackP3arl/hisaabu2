@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useData } from '../context/DataContext'
+import { handleApiError } from '../utils/errorHandler'
 
 export default function ItemSelector({ onSelect, onClose }) {
-  const { items, categories, addItem } = useData()
+  const { items, categories, loading, fetchItems, fetchCategories, createItem } = useData()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newItem, setNewItem] = useState({
     name: '',
@@ -12,19 +14,35 @@ export default function ItemSelector({ onSelect, onClose }) {
     categoryId: '',
     status: 'active'
   })
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState(null)
   const searchRef = useRef(null)
 
   useEffect(() => {
     searchRef.current?.focus()
-  }, [])
+    fetchItems({ limit: 100 })
+    fetchCategories({ limit: 100 })
+  }, [fetchItems, fetchCategories])
 
-  const filteredItems = items.filter(item => {
-    if (!search) return true
-    const searchLower = search.toLowerCase()
-    return item.name.toLowerCase().includes(searchLower) || 
-           item.description.toLowerCase().includes(searchLower) ||
-           item.categoryName?.toLowerCase().includes(searchLower)
-  })
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Fetch items when search changes
+  useEffect(() => {
+    if (debouncedSearch) {
+      fetchItems({ search: debouncedSearch, limit: 100 })
+    } else {
+      fetchItems({ limit: 100 })
+    }
+  }, [debouncedSearch, fetchItems])
+
+  // Use items directly from API (server-side search)
+  const filteredItems = items
 
   const getCategoryColor = (categoryId) => {
     const category = categories.find(c => c.id === categoryId)
@@ -45,26 +63,34 @@ export default function ItemSelector({ onSelect, onClose }) {
     onClose()
   }
 
-  const handleCreateAndAdd = () => {
+  const handleCreateAndAdd = async () => {
     if (!newItem.name || !newItem.rate) return
     
-    const createdItem = addItem({
-      ...newItem,
-      rate: parseFloat(newItem.rate) || 0,
-      categoryId: parseInt(newItem.categoryId) || null
-    })
-    
-    onSelect({
-      name: createdItem.name,
-      description: createdItem.description,
-      quantity: 1,
-      price: createdItem.rate,
-      discount: 0,
-      tax: 10,
-      itemId: createdItem.id,
-      categoryId: createdItem.categoryId
-    })
-    onClose()
+    setCreating(true)
+    setError(null)
+    try {
+      const createdItem = await createItem({
+        ...newItem,
+        rate: parseFloat(newItem.rate) || 0,
+        categoryId: newItem.categoryId ? parseInt(newItem.categoryId) : null
+      })
+      
+      onSelect({
+        name: createdItem.name,
+        description: createdItem.description,
+        quantity: 1,
+        price: createdItem.rate,
+        discount: 0,
+        tax: 10,
+        itemId: createdItem.id,
+        categoryId: createdItem.categoryId
+      })
+      onClose()
+    } catch (err) {
+      setError(handleApiError(err))
+    } finally {
+      setCreating(false)
+    }
   }
 
   const handleCreateNew = () => {
@@ -107,7 +133,17 @@ export default function ItemSelector({ onSelect, onClose }) {
 
             {/* Items List */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {filteredItems.length > 0 ? (
+              {error && (
+                <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-800 dark:text-red-200">
+                  {error}
+                </div>
+              )}
+              {loading.items ? (
+                <div className="text-center py-12">
+                  <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 animate-spin">sync</span>
+                  <p className="text-slate-500 dark:text-slate-400 mt-4">Loading items...</p>
+                </div>
+              ) : filteredItems.length > 0 ? (
                 <div className="space-y-2">
                   {filteredItems.map((item) => (
                     <button
@@ -138,7 +174,7 @@ export default function ItemSelector({ onSelect, onClose }) {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-bold text-slate-900 dark:text-white">${item.rate}</p>
-                        <p className="text-xs text-slate-400">/hour</p>
+                        <p className="text-xs text-slate-400">/piece</p>
                       </div>
                       <span className="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">add_circle</span>
                     </button>
@@ -203,7 +239,7 @@ export default function ItemSelector({ onSelect, onClose }) {
                         placeholder="0.00"
                         className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary h-12 pl-8 pr-16"
                       />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm">/hour</span>
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm">/piece</span>
                     </div>
                   </div>
                   <div>
@@ -237,7 +273,7 @@ export default function ItemSelector({ onSelect, onClose }) {
                         <p className="text-xs text-slate-500 dark:text-slate-400">{newItem.description || 'No description'}</p>
                       </div>
                       {newItem.rate && (
-                        <p className="font-bold text-primary">${parseFloat(newItem.rate).toLocaleString()}/hr</p>
+                        <p className="font-bold text-primary">${parseFloat(newItem.rate).toLocaleString()}/piece</p>
                       )}
                     </div>
                   </div>
@@ -255,11 +291,20 @@ export default function ItemSelector({ onSelect, onClose }) {
               </button>
               <button
                 onClick={handleCreateAndAdd}
-                disabled={!newItem.name || !newItem.rate}
+                disabled={!newItem.name || !newItem.rate || creating}
                 className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <span className="material-symbols-outlined text-[20px]">add</span>
-                Create & Add
+                {creating ? (
+                  <>
+                    <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[20px]">add</span>
+                    Create & Add
+                  </>
+                )}
               </button>
             </div>
           </>
@@ -268,4 +313,5 @@ export default function ItemSelector({ onSelect, onClose }) {
     </div>
   )
 }
+
 

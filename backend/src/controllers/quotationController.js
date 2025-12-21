@@ -1,0 +1,666 @@
+import {
+  getQuotations,
+  getQuotationById,
+  createQuotation,
+  updateQuotation,
+  updateQuotationItems,
+  deleteQuotation,
+  verifyClientOwnership,
+} from '../queries/quotations.js';
+import { createInvoice } from '../queries/invoices.js';
+import { getQuotationPrefix, getInvoicePrefix } from '../queries/settings.js';
+import { generateQuotationNumber, generateInvoiceNumber } from '../utils/numbering.js';
+import { query } from '../config/database.js';
+import { successResponse, errorResponse, toCamelCase, toCamelCaseArray } from '../utils/response.js';
+
+/**
+ * Get list of quotations
+ * GET /api/v1/quotations
+ */
+export const listQuotations = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const filters = {
+      page: parseInt(req.query.page) || 1,
+      limit: parseInt(req.query.limit) || 20,
+      search: req.query.search || '',
+      status: req.query.status || 'all',
+      clientId: req.query.clientId ? parseInt(req.query.clientId) : null,
+      dateFrom: req.query.dateFrom || null,
+      dateTo: req.query.dateTo || null,
+      sort: req.query.sort || 'created_at',
+      order: req.query.order || 'desc',
+    };
+
+    const result = await getQuotations(userId, filters);
+
+    // Transform quotations
+    const transformedQuotations = result.quotations.map(q => {
+      const transformed = toCamelCase(q);
+      transformed.clientName = q.client_name;
+      return transformed;
+    });
+
+    return successResponse(
+      res,
+      {
+        quotations: transformedQuotations,
+        pagination: result.pagination,
+      },
+      null,
+      200
+    );
+  } catch (error) {
+    console.error('List quotations error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get quotation by ID
+ * GET /api/v1/quotations/:id
+ */
+export const getQuotation = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const quotationId = parseInt(req.params.id);
+
+    if (isNaN(quotationId)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid quotation ID',
+        null,
+        400
+      );
+    }
+
+    const quotation = await getQuotationById(userId, quotationId);
+
+    if (!quotation) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    // Transform quotation
+    const transformed = toCamelCase(quotation);
+    transformed.client = {
+      id: quotation.client_id,
+      name: quotation.client_name,
+      email: quotation.client_email,
+    };
+    transformed.items = toCamelCaseArray(quotation.items || []);
+
+    return successResponse(
+      res,
+      {
+        quotation: transformed,
+      },
+      null,
+      200
+    );
+  } catch (error) {
+    console.error('Get quotation error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create new quotation
+ * POST /api/v1/quotations
+ */
+export const create = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const {
+      clientId,
+      issueDate,
+      expiryDate,
+      notes,
+      terms,
+      status = 'draft',
+      items,
+    } = req.body;
+
+    // Validation
+    if (!clientId) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Client ID is required',
+        { clientId: ['Client ID is required'] },
+        422
+      );
+    }
+
+    if (!issueDate) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Issue date is required',
+        { issueDate: ['Issue date is required'] },
+        422
+      );
+    }
+
+    if (!expiryDate) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Expiry date is required',
+        { expiryDate: ['Expiry date is required'] },
+        422
+      );
+    }
+
+    if (new Date(expiryDate) < new Date(issueDate)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Expiry date must be >= issue date',
+        { expiryDate: ['Expiry date must be >= issue date'] },
+        422
+      );
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'At least one line item is required',
+        { items: ['At least one line item is required'] },
+        422
+      );
+    }
+
+    // Validate status
+    const validStatuses = ['draft', 'sent', 'accepted', 'expired'];
+    if (status && !validStatuses.includes(status)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid status value',
+        { status: [`Status must be one of: ${validStatuses.join(', ')}`] },
+        422
+      );
+    }
+
+    // Verify client ownership
+    const clientExists = await verifyClientOwnership(userId, clientId);
+    if (!clientExists) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Client not found',
+        null,
+        404
+      );
+    }
+
+    // Validate line items
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.name || item.name.trim().length === 0) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          `Item ${i + 1}: Name is required`,
+          { [`items[${i}].name`]: ['Name is required'] },
+          422
+        );
+      }
+      if (!item.quantity || item.quantity <= 0) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          `Item ${i + 1}: Quantity must be > 0`,
+          { [`items[${i}].quantity`]: ['Quantity must be > 0'] },
+          422
+        );
+      }
+      if (item.price === undefined || item.price < 0) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          `Item ${i + 1}: Price must be >= 0`,
+          { [`items[${i}].price`]: ['Price must be >= 0'] },
+          422
+        );
+      }
+      if (item.discountPercent < 0 || item.discountPercent > 100) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          `Item ${i + 1}: Discount percent must be 0-100`,
+          { [`items[${i}].discountPercent`]: ['Discount percent must be 0-100'] },
+          422
+        );
+      }
+      if (item.taxPercent < 0 || item.taxPercent > 100) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          `Item ${i + 1}: Tax percent must be 0-100`,
+          { [`items[${i}].taxPercent`]: ['Tax percent must be 0-100'] },
+          422
+        );
+      }
+    }
+
+    // Get quotation prefix and generate number
+    const prefix = await getQuotationPrefix(userId);
+    const quotationNumber = await generateQuotationNumber(userId, prefix, query);
+
+    // Create quotation with line items
+    const quotation = await createQuotation(
+      userId,
+      {
+        clientId,
+        issueDate,
+        expiryDate,
+        notes,
+        terms,
+        status,
+      },
+      items,
+      quotationNumber
+    );
+
+    // Transform response
+    const transformed = toCamelCase(quotation);
+    transformed.client = {
+      id: quotation.client_id,
+      name: quotation.client_name,
+      email: quotation.client_email,
+    };
+    transformed.items = toCamelCaseArray(quotation.items || []);
+
+    return successResponse(
+      res,
+      {
+        quotation: transformed,
+      },
+      'Quotation created successfully',
+      201
+    );
+  } catch (error) {
+    console.error('Create quotation error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update quotation
+ * PUT /api/v1/quotations/:id
+ */
+export const update = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const quotationId = parseInt(req.params.id);
+
+    if (isNaN(quotationId)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid quotation ID',
+        null,
+        400
+      );
+    }
+
+    // Check if quotation exists
+    const existingQuotation = await getQuotationById(userId, quotationId);
+    if (!existingQuotation) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    const {
+      clientId,
+      issueDate,
+      expiryDate,
+      notes,
+      terms,
+      status,
+      items,
+    } = req.body;
+
+    // Validation
+    if (issueDate && expiryDate && new Date(expiryDate) < new Date(issueDate)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Expiry date must be >= issue date',
+        { expiryDate: ['Expiry date must be >= issue date'] },
+        422
+      );
+    }
+
+    if (status !== undefined) {
+      const validStatuses = ['draft', 'sent', 'accepted', 'expired'];
+      if (!validStatuses.includes(status)) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'Invalid status value',
+          { status: [`Status must be one of: ${validStatuses.join(', ')}`] },
+          422
+        );
+      }
+    }
+
+    // Verify client ownership if clientId is being updated
+    if (clientId !== undefined) {
+      const clientExists = await verifyClientOwnership(userId, clientId);
+      if (!clientExists) {
+        return errorResponse(
+          res,
+          'NOT_FOUND',
+          'Client not found',
+          null,
+          404
+        );
+      }
+    }
+
+    // Validate line items if provided
+    if (items !== undefined) {
+      if (!Array.isArray(items) || items.length === 0) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'At least one line item is required',
+          { items: ['At least one line item is required'] },
+          422
+        );
+      }
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item.name || item.name.trim().length === 0) {
+          return errorResponse(
+            res,
+            'VALIDATION_ERROR',
+            `Item ${i + 1}: Name is required`,
+            { [`items[${i}].name`]: ['Name is required'] },
+            422
+          );
+        }
+        if (!item.quantity || item.quantity <= 0) {
+          return errorResponse(
+            res,
+            'VALIDATION_ERROR',
+            `Item ${i + 1}: Quantity must be > 0`,
+            { [`items[${i}].quantity`]: ['Quantity must be > 0'] },
+            422
+          );
+        }
+        if (item.price === undefined || item.price < 0) {
+          return errorResponse(
+            res,
+            'VALIDATION_ERROR',
+            `Item ${i + 1}: Price must be >= 0`,
+            { [`items[${i}].price`]: ['Price must be >= 0'] },
+            422
+          );
+        }
+      }
+    }
+
+    // Update quotation fields
+    const updatedQuotation = await updateQuotation(userId, quotationId, {
+      clientId,
+      issueDate,
+      expiryDate,
+      notes,
+      terms,
+      status,
+    });
+
+    if (!updatedQuotation) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    // Update line items if provided
+    if (items !== undefined) {
+      await updateQuotationItems(userId, quotationId, items);
+      // Get updated quotation with new items
+      const fullQuotation = await getQuotationById(userId, quotationId);
+      
+      // Transform response
+      const transformed = toCamelCase(fullQuotation);
+      transformed.client = {
+        id: fullQuotation.client_id,
+        name: fullQuotation.client_name,
+        email: fullQuotation.client_email,
+      };
+      transformed.items = toCamelCaseArray(fullQuotation.items || []);
+
+      return successResponse(
+        res,
+        {
+          quotation: transformed,
+        },
+        'Quotation updated successfully',
+        200
+      );
+    }
+
+    // Transform response
+    const transformed = toCamelCase(updatedQuotation);
+    transformed.client = {
+      id: updatedQuotation.client_id,
+      name: updatedQuotation.client_name,
+      email: updatedQuotation.client_email,
+    };
+    transformed.items = toCamelCaseArray(updatedQuotation.items || []);
+
+    return successResponse(
+      res,
+      {
+        quotation: transformed,
+      },
+      'Quotation updated successfully',
+      200
+    );
+  } catch (error) {
+    console.error('Update quotation error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete quotation
+ * DELETE /api/v1/quotations/:id
+ */
+export const remove = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const quotationId = parseInt(req.params.id);
+
+    if (isNaN(quotationId)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid quotation ID',
+        null,
+        400
+      );
+    }
+
+    // Check if quotation exists
+    const existingQuotation = await getQuotationById(userId, quotationId);
+    if (!existingQuotation) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    await deleteQuotation(userId, quotationId);
+
+    return successResponse(
+      res,
+      null,
+      'Quotation deleted successfully',
+      200
+    );
+  } catch (error) {
+    console.error('Delete quotation error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Convert quotation to invoice
+ * POST /api/v1/quotations/:id/convert
+ */
+export const convertToInvoice = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const quotationId = parseInt(req.params.id);
+
+    if (isNaN(quotationId)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid quotation ID',
+        null,
+        400
+      );
+    }
+
+    // Get quotation
+    const quotation = await getQuotationById(userId, quotationId);
+    if (!quotation) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Quotation not found',
+        null,
+        404
+      );
+    }
+
+    const { issueDate, dueDate } = req.body;
+
+    // Validate dates
+    if (!issueDate) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Issue date is required',
+        { issueDate: ['Issue date is required'] },
+        422
+      );
+    }
+
+    if (!dueDate) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Due date is required',
+        { dueDate: ['Due date is required'] },
+        422
+      );
+    }
+
+    if (new Date(dueDate) < new Date(issueDate)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Due date must be >= issue date',
+        { dueDate: ['Due date must be >= issue date'] },
+        422
+      );
+    }
+
+    // Validate quotation has items
+    if (!quotation.items || quotation.items.length === 0) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Quotation must have at least one line item to convert',
+        null,
+        422
+      );
+    }
+
+    // Generate invoice number
+    const prefix = await getInvoicePrefix(userId);
+    const invoiceNumber = await generateInvoiceNumber(userId, prefix, query);
+
+    // Transform quotation items to invoice items
+    const invoiceItems = quotation.items.map(item => ({
+      itemId: item.item_id,
+      name: item.name,
+      description: item.description,
+      quantity: parseFloat(item.quantity),
+      price: parseFloat(item.price),
+      discountPercent: parseFloat(item.discount_percent || 0),
+      taxPercent: parseFloat(item.tax_percent || 0),
+    }));
+
+    // Create invoice from quotation
+    const invoice = await createInvoice(
+      userId,
+      {
+        clientId: quotation.client_id,
+        issueDate,
+        dueDate,
+        notes: quotation.notes,
+        terms: quotation.terms,
+        status: 'draft',
+      },
+      invoiceItems,
+      invoiceNumber
+    );
+
+    // Update quotation status to 'accepted'
+    await updateQuotation(userId, quotationId, {
+      status: 'accepted',
+    });
+
+    // Transform response
+    const transformed = toCamelCase(invoice);
+    transformed.client = {
+      id: invoice.client_id,
+      name: invoice.client_name,
+      email: invoice.client_email,
+    };
+    transformed.items = toCamelCaseArray(invoice.items || []);
+    transformed.payments = toCamelCaseArray(invoice.payments || []);
+
+    return successResponse(
+      res,
+      {
+        invoice: transformed,
+      },
+      'Quotation converted to invoice successfully',
+      201
+    );
+  } catch (error) {
+    console.error('Convert quotation error:', error);
+    throw error;
+  }
+};
+

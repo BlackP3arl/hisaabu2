@@ -1,17 +1,133 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import PrintPreview from '../components/PrintPreview'
+import apiClient from '../api/client'
+import { handleApiError } from '../utils/errorHandler'
 
 export default function QuotationDetail() {
   const { id } = useParams()
-  const { quotations, clients, company } = useData()
-  const quotation = quotations.find(q => q.id === parseInt(id))
-  const client = clients.find(c => c.id === quotation?.clientId)
+  const navigate = useNavigate()
+  const { getQuotation, companySettings, convertQuotationToInvoice, deleteQuotation, generateShareLink, loading } = useData()
+  const [quotation, setQuotation] = useState(null)
+  const [client, setClient] = useState(null)
+  const [loadingDetail, setLoadingDetail] = useState(true)
+  const [error, setError] = useState(null)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  if (!quotation) return <div className="flex items-center justify-center min-h-screen">Quotation not found</div>
+  useEffect(() => {
+    const loadQuotation = async () => {
+      try {
+        setLoadingDetail(true)
+        const quotationData = await getQuotation(parseInt(id))
+        if (quotationData) {
+          setQuotation(quotationData)
+          // Fetch client data if available
+          if (quotationData.clientId) {
+            try {
+              const { data } = await apiClient.get(`/clients/${quotationData.clientId}`)
+              if (data.success && data.data.client) {
+                setClient(data.data.client)
+              }
+            } catch (err) {
+              console.error('Failed to load client:', err)
+            }
+          }
+        } else {
+          setError('Quotation not found')
+        }
+      } catch (err) {
+        setError(handleApiError(err))
+      } finally {
+        setLoadingDetail(false)
+      }
+    }
+    loadQuotation()
+  }, [id, getQuotation])
+
+  const handleConvertToInvoice = async () => {
+    if (window.confirm('Are you sure you want to convert this quotation to an invoice?')) {
+      try {
+        const newInvoice = await convertQuotationToInvoice(parseInt(id))
+        navigate(`/invoices/${newInvoice.id}/view`)
+      } catch (err) {
+        setError(handleApiError(err))
+      }
+    }
+  }
+
+  const handleDelete = async () => {
+    try {
+      await deleteQuotation(parseInt(id))
+      navigate('/quotations')
+    } catch (err) {
+      setError(handleApiError(err))
+    }
+  }
+
+  const handleDownloadPdf = async () => {
+    try {
+      const response = await apiClient.get(`/quotations/${id}/pdf`, {
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `quotation-${quotation?.number || id}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (err) {
+      setError(handleApiError(err))
+    }
+  }
+
+  const handleGenerateShareLink = async () => {
+    try {
+      const shareLink = await generateShareLink('quotation', parseInt(id))
+      if (shareLink) {
+        const shareUrl = `${window.location.origin}/share/quotation/${shareLink.token}`
+        navigator.clipboard.writeText(shareUrl)
+        alert('Share link copied to clipboard!')
+      }
+    } catch (err) {
+      setError(handleApiError(err))
+    }
+  }
+
+  if (loadingDetail || loading.quotation) {
+    return (
+      <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+            <p className="text-slate-500 dark:text-slate-400">Loading quotation...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !quotation) {
+    return (
+      <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-6xl text-red-500 mb-4">error</span>
+            <p className="text-slate-900 dark:text-white text-lg mb-2">Quotation not found</p>
+            <p className="text-slate-500 dark:text-slate-400">{error || 'The quotation you are looking for does not exist.'}</p>
+            <Link to="/quotations" className="mt-4 inline-block text-primary hover:underline">
+              Back to Quotations
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const getStatusStyles = (status) => {
     const styles = {
@@ -23,7 +139,39 @@ export default function QuotationDetail() {
     return styles[status] || styles.draft
   }
 
-  const isExpired = new Date(quotation.expiry) < new Date()
+  const issueDate = quotation.issueDate || quotation.date
+  const expiryDate = quotation.expiryDate || quotation.expiry
+  const isExpired = expiryDate && new Date(expiryDate) < new Date()
+  
+  // Calculate totals from line items
+  const calculateTotals = () => {
+    if (!quotation.items || quotation.items.length === 0) {
+      return {
+        subtotal: quotation.subtotal || quotation.amount || 0,
+        discount: quotation.discountTotal || 0,
+        tax: quotation.taxTotal || 0,
+        total: quotation.totalAmount || quotation.amount || 0
+      }
+    }
+    const subtotal = quotation.items.reduce((sum, item) => {
+      return sum + (item.quantity * item.price)
+    }, 0)
+    const discount = quotation.items.reduce((sum, item) => {
+      const discountPercent = item.discountPercent || item.discount || 0
+      return sum + (item.quantity * item.price * discountPercent / 100)
+    }, 0)
+    const afterDiscount = subtotal - discount
+    const tax = quotation.items.reduce((sum, item) => {
+      const discountPercent = item.discountPercent || item.discount || 0
+      const taxPercent = item.taxPercent || item.tax || 0
+      const itemTotal = item.quantity * item.price * (1 - discountPercent / 100)
+      return sum + (itemTotal * taxPercent / 100)
+    }, 0)
+    const total = afterDiscount + tax
+    return { subtotal, discount, tax, total }
+  }
+  
+  const { subtotal, discount, tax, total } = calculateTotals()
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
@@ -38,7 +186,7 @@ export default function QuotationDetail() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{quotation.number}</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{quotation.clientName}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{client?.name || quotation.clientName || 'Unknown Client'}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -50,19 +198,26 @@ export default function QuotationDetail() {
               Edit
             </Link>
             <button 
-              onClick={() => setShowPrintPreview(true)}
+              onClick={handleDownloadPdf}
               className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
-              <span className="material-symbols-outlined text-[20px]">print</span>
-              Print / PDF
+              <span className="material-symbols-outlined text-[20px]">download</span>
+              Download PDF
             </button>
-            <Link
-              to="/invoices/new"
+            <button
+              onClick={handleGenerateShareLink}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">share</span>
+              Share Link
+            </button>
+            <button
+              onClick={handleConvertToInvoice}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold"
             >
               <span className="material-symbols-outlined text-[20px]">receipt_long</span>
               Convert to Invoice
-            </Link>
+            </button>
           </div>
         </header>
 
@@ -92,9 +247,9 @@ export default function QuotationDetail() {
                         <div className="w-12 h-12 bg-primary/10 dark:bg-primary/20 rounded-xl flex items-center justify-center mb-3">
                           <span className="material-symbols-outlined text-primary text-2xl">business</span>
                         </div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">{company.name}</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{company.address}</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{company.email}</p>
+                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">{companySettings?.companyName || 'Company Name'}</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{companySettings?.address || ''}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{companySettings?.email || ''}</p>
                       </div>
                       <div className="text-left sm:text-right">
                         <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">{quotation.number}</h1>
@@ -115,18 +270,18 @@ export default function QuotationDetail() {
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">Issue Date</p>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">{new Date(quotation.date).toLocaleDateString()}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">{issueDate ? new Date(issueDate).toLocaleDateString() : 'N/A'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">Valid Until</p>
                         <p className={`text-sm font-semibold mt-1 ${isExpired ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
-                          {new Date(quotation.expiry).toLocaleDateString()}
+                          {expiryDate ? new Date(expiryDate).toLocaleDateString() : 'N/A'}
                           {isExpired && <span className="ml-2 text-xs">(Expired)</span>}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">Total Amount</p>
-                        <p className="text-sm font-bold text-primary mt-1">${quotation.amount.toLocaleString()}.00</p>
+                        <p className="text-sm font-bold text-primary mt-1">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                     </div>
 
@@ -142,15 +297,36 @@ export default function QuotationDetail() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                          <tr>
-                            <td className="px-4 py-4">
-                              <p className="font-medium text-slate-900 dark:text-white text-sm">Professional Services</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Quotation item description</p>
-                            </td>
-                            <td className="px-4 py-4 text-center text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">1</td>
-                            <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">${quotation.amount.toLocaleString()}.00</td>
-                            <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">${quotation.amount.toLocaleString()}.00</td>
-                          </tr>
+                          {quotation.items && quotation.items.length > 0 ? (
+                            quotation.items.map((item, index) => {
+                              const itemDiscount = item.discountPercent || item.discount || 0
+                              const itemTax = item.taxPercent || item.tax || 0
+                              const itemSubtotal = item.quantity * item.price
+                              const itemDiscountAmount = itemSubtotal * itemDiscount / 100
+                              const itemAfterDiscount = itemSubtotal - itemDiscountAmount
+                              const itemTaxAmount = itemAfterDiscount * itemTax / 100
+                              const itemTotal = itemAfterDiscount + itemTaxAmount
+                              return (
+                                <tr key={index}>
+                                  <td className="px-4 py-4">
+                                    <p className="font-medium text-slate-900 dark:text-white text-sm">{item.name || 'Item'}</p>
+                                    {item.description && (
+                                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{item.description}</p>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-4 text-center text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">{item.quantity}</td>
+                                  <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300 hidden sm:table-cell">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">${itemTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>
+                              )
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan="4" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                                No items found
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -160,16 +336,24 @@ export default function QuotationDetail() {
                       <div className="w-full sm:w-64 space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
-                          <span className="font-medium text-slate-900 dark:text-white">${quotation.amount.toLocaleString()}.00</span>
+                          <span className="font-medium text-slate-900 dark:text-white">${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-500 dark:text-slate-400">Tax (0%)</span>
-                          <span className="font-medium text-slate-900 dark:text-white">$0.00</span>
-                        </div>
+                        {discount > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-500 dark:text-slate-400">Discount</span>
+                            <span className="font-medium text-slate-900 dark:text-white">-${discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
+                        {tax > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-500 dark:text-slate-400">Tax</span>
+                            <span className="font-medium text-slate-900 dark:text-white">${tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
                         <div className="h-px bg-slate-200 dark:bg-slate-700 my-2"></div>
                         <div className="flex justify-between">
                           <span className="font-bold text-slate-900 dark:text-white">Total</span>
-                          <span className="text-xl font-bold text-primary">${quotation.amount.toLocaleString()}.00</span>
+                          <span className="text-xl font-bold text-primary">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       </div>
                     </div>
@@ -191,12 +375,12 @@ export default function QuotationDetail() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500 dark:text-slate-400">Created</span>
-                      <span className="font-medium text-slate-900 dark:text-white text-sm">{new Date(quotation.date).toLocaleDateString()}</span>
+                      <span className="font-medium text-slate-900 dark:text-white text-sm">{issueDate ? new Date(issueDate).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500 dark:text-slate-400">Valid Until</span>
                       <span className={`font-medium text-sm ${isExpired ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
-                        {new Date(quotation.expiry).toLocaleDateString()}
+                        {expiryDate ? new Date(expiryDate).toLocaleDateString() : 'N/A'}
                       </span>
                     </div>
                     {isExpired && (
@@ -214,22 +398,31 @@ export default function QuotationDetail() {
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-5 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Actions</h3>
                   <div className="space-y-3">
-                    <Link
-                      to="/invoices/new"
+                    <button
+                      onClick={handleConvertToInvoice}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors text-left"
                     >
                       <span className="material-symbols-outlined text-primary">receipt_long</span>
                       <span className="text-sm font-medium text-primary">Convert to Invoice</span>
-                    </Link>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left">
-                      <span className="material-symbols-outlined text-blue-600">send</span>
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Send to Client</span>
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left">
-                      <span className="material-symbols-outlined text-slate-500">content_copy</span>
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Duplicate Quote</span>
+                    <button 
+                      onClick={handleDownloadPdf}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-blue-600">download</span>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Download PDF</span>
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left">
+                    <button 
+                      onClick={handleGenerateShareLink}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-slate-500">share</span>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Share Link</span>
+                    </button>
+                    <button 
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+                    >
                       <span className="material-symbols-outlined text-red-500">delete</span>
                       <span className="text-sm font-medium text-red-600 dark:text-red-400">Delete Quote</span>
                     </button>
@@ -238,13 +431,13 @@ export default function QuotationDetail() {
 
                 {/* Desktop Action Buttons */}
                 <div className="hidden lg:block space-y-3">
-                  <Link
-                    to="/invoices/new"
+                  <button
+                    onClick={handleConvertToInvoice}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors"
                   >
                     <span className="material-symbols-outlined text-[20px]">receipt_long</span>
                     Convert to Invoice
-                  </Link>
+                  </button>
                   <Link
                     to={`/quotations/${id}`}
                     className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -275,13 +468,13 @@ export default function QuotationDetail() {
               <span className="material-symbols-outlined text-[20px]">print</span>
               PDF
             </button>
-            <Link
-              to="/invoices/new"
+            <button
+              onClick={handleConvertToInvoice}
               className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md"
             >
               <span className="material-symbols-outlined text-[20px]">receipt_long</span>
               Convert
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -290,10 +483,44 @@ export default function QuotationDetail() {
       {showPrintPreview && (
         <PrintPreview
           type="quotation"
-          data={quotation}
+          data={{
+            ...quotation,
+            date: issueDate,
+            expiry: expiryDate,
+            amount: total,
+          }}
           client={client}
           onClose={() => setShowPrintPreview(false)}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Delete Quotation</h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              Are you sure you want to delete this quotation? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  handleDelete()
+                }}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

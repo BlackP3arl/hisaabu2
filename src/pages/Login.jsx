@@ -1,23 +1,50 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import apiClient from '../api/client'
+import { handleApiError } from '../utils/errorHandler'
+import { setAuth } from '../utils/auth'
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [show2FA, setShow2FA] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (email && password) {
-      setShow2FA(true)
-    }
-  }
+    setError(null)
+    setLoading(true)
 
-  const handle2FA = () => {
-    onLogin()
-    navigate('/')
+    try {
+      const { data } = await apiClient.post('/auth/login', {
+        email,
+        password
+      })
+
+      if (data.success && data.data) {
+        // Store tokens and user data
+        setAuth(
+          data.data.token,
+          data.data.refreshToken,
+          data.data.user
+        )
+        
+        // Call onLogin callback if provided
+        if (onLogin) {
+          onLogin()
+        }
+        
+        // Redirect to dashboard
+        navigate('/')
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Login failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -85,102 +112,92 @@ export default function Login({ onLogin }) {
             <p className="text-slate-500 dark:text-slate-400 text-base font-normal leading-normal">Sign in to manage your invoices and quotes.</p>
           </div>
 
-          {!show2FA ? (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5 py-8">
-              <label className="flex flex-col w-full">
-                <p className="text-slate-900 dark:text-slate-200 text-sm font-medium leading-normal pb-2">Email Address</p>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">mail</span>
-                  <input
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 focus:border-primary h-12 pl-11 pr-4 placeholder:text-slate-400 text-base transition-all"
-                    placeholder="name@company.com"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              </label>
-
-              <label className="flex flex-col w-full">
-                <div className="flex justify-between items-center pb-2">
-                  <p className="text-slate-900 dark:text-slate-200 text-sm font-medium leading-normal">Password</p>
-                </div>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
-                  <input
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 focus:border-primary h-12 pl-11 pr-12 placeholder:text-slate-400 text-base transition-all"
-                    placeholder="••••••••"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1"
-                  >
-                    <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility_off' : 'visibility'}</span>
-                  </button>
-                </div>
-                <div className="flex justify-end pt-2">
-                  <a href="#" className="text-sm font-medium text-primary hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Forgot Password?</a>
-                </div>
-              </label>
-
-              <div className="flex flex-col gap-4 mt-2">
-                <button
-                  type="submit"
-                  className="flex w-full items-center justify-center rounded-xl bg-primary py-3.5 px-4 text-base font-semibold text-white shadow-lg shadow-primary/25 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
-                >
-                  Log In
-                </button>
-                
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
-                  <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-medium tracking-wider">Or</span>
-                  <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                    <span className="material-symbols-outlined text-xl">face</span>
-                    Face ID
-                  </button>
-                  <button type="button" className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                    <span className="material-symbols-outlined text-xl">fingerprint</span>
-                    Touch ID
-                  </button>
-                </div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5 py-8">
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-2">
+                <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
               </div>
-            </form>
-          ) : (
-            <div className="py-8">
-              <div className="rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-600 dark:text-green-400">
-                    <span className="material-symbols-outlined text-xl">security</span>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Two-Factor Authentication</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Enter the code from your app</p>
-                  </div>
-                </div>
-                <div className="flex justify-between gap-2 mb-4">
-                  {[...Array(6)].map((_, i) => (
-                    <input key={i} className="w-10 h-12 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 focus:border-primary focus:ring-primary focus:outline-none dark:text-white" maxLength="1" type="text" />
-                  ))}
-                </div>
+            )}
+
+            <label className="flex flex-col w-full">
+              <p className="text-slate-900 dark:text-slate-200 text-sm font-medium leading-normal pb-2">Email Address</p>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">mail</span>
+                <input
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 focus:border-primary h-12 pl-11 pr-4 placeholder:text-slate-400 text-base transition-all disabled:opacity-50"
+                  placeholder="name@company.com"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </label>
+
+            <label className="flex flex-col w-full">
+              <div className="flex justify-between items-center pb-2">
+                <p className="text-slate-900 dark:text-slate-200 text-sm font-medium leading-normal">Password</p>
+              </div>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
+                <input
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 focus:border-primary h-12 pl-11 pr-12 placeholder:text-slate-400 text-base transition-all disabled:opacity-50"
+                  placeholder="••••••••"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                />
                 <button
-                  onClick={handle2FA}
-                  className="w-full rounded-xl bg-slate-900 dark:bg-slate-600 text-white py-3 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1"
+                  disabled={loading}
                 >
-                  Verify Code
+                  <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
+              <div className="flex justify-end pt-2">
+                <a href="#" className="text-sm font-medium text-primary hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Forgot Password?</a>
+              </div>
+            </label>
+
+            <div className="flex flex-col gap-4 mt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex w-full items-center justify-center rounded-xl bg-primary py-3.5 px-4 text-base font-semibold text-white shadow-lg shadow-primary/25 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin mr-2">sync</span>
+                    Logging in...
+                  </>
+                ) : (
+                  'Log In'
+                )}
+              </button>
+              
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+                <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-medium tracking-wider">Or</span>
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" disabled={loading} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50">
+                  <span className="material-symbols-outlined text-xl">face</span>
+                  Face ID
+                </button>
+                <button type="button" disabled={loading} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-3 px-4 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50">
+                  <span className="material-symbols-outlined text-xl">fingerprint</span>
+                  Touch ID
                 </button>
               </div>
             </div>
-          )}
+          </form>
 
           <div className="py-6 text-center border-t border-slate-200 dark:border-slate-800">
             <p className="text-sm text-slate-500 dark:text-slate-400">

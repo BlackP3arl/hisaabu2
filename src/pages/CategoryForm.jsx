@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
@@ -19,22 +19,50 @@ const colorOptions = [
 export default function CategoryForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { categories, addCategory, updateCategory } = useData()
-  const category = id ? categories.find(c => c.id === parseInt(id)) : null
+  const { getCategory, createCategory, updateCategory, loading } = useData()
+  const [category, setCategory] = useState(null)
+  const [formError, setFormError] = useState(null)
 
   const [formData, setFormData] = useState({
-    name: category?.name || '',
-    description: category?.description || '',
-    color: category?.color || '#3B82F6',
+    name: '',
+    description: '',
+    color: '#3B82F6',
   })
 
-  const handleSave = () => {
+  // Load category data if editing
+  useEffect(() => {
     if (id) {
-      updateCategory(parseInt(id), formData)
-    } else {
-      addCategory(formData)
+      const loadCategory = async () => {
+        try {
+          const categoryData = await getCategory(parseInt(id))
+          if (categoryData) {
+            setCategory(categoryData)
+            setFormData({
+              name: categoryData.name || '',
+              description: categoryData.description || '',
+              color: categoryData.color || '#3B82F6',
+            })
+          }
+        } catch (err) {
+          setFormError('Failed to load category data')
+        }
+      }
+      loadCategory()
     }
-    navigate('/categories')
+  }, [id, getCategory])
+
+  const handleSave = async () => {
+    setFormError(null)
+    try {
+      if (id) {
+        await updateCategory(parseInt(id), formData)
+      } else {
+        await createCategory(formData)
+      }
+      navigate('/categories')
+    } catch (err) {
+      setFormError(err.response?.data?.error?.message || 'Failed to save category')
+    }
   }
 
   return (
@@ -57,9 +85,22 @@ export default function CategoryForm() {
             <Link to="/categories" className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
               Cancel
             </Link>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              Save Category
+            <button 
+              onClick={handleSave} 
+              disabled={loading.category}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading.category ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save Category
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -79,6 +120,20 @@ export default function CategoryForm() {
 
         {/* Content */}
         <div className="flex-1 p-4 lg:p-8">
+          {formError && (
+            <div className="max-w-2xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+              <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+            </div>
+          )}
+          {id && loading.category && !category && (
+            <div className="max-w-2xl mx-auto flex items-center justify-center py-12">
+              <div className="text-center">
+                <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+                <p className="text-slate-500 dark:text-slate-400">Loading category data...</p>
+              </div>
+            </div>
+          )}
+          {(!id || category) && (
           <div className="max-w-2xl mx-auto">
             <div className="space-y-6">
               {/* Preview Card */}
@@ -181,13 +236,27 @@ export default function CategoryForm() {
                 <Link to="/categories" className="px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   Cancel
                 </Link>
-                <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-                  <span className="material-symbols-outlined text-[20px]">save</span>
-                  Save Category
+                <button 
+                  onClick={handleSave} 
+                  disabled={loading.category}
+                  className="flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading.category ? (
+                    <>
+                      <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[20px]">save</span>
+                      Save Category
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Mobile Bottom Bar */}
@@ -196,9 +265,22 @@ export default function CategoryForm() {
             <Link to="/categories" className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm">
               Cancel
             </Link>
-            <button onClick={handleSave} className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              Save Category
+            <button 
+              onClick={handleSave} 
+              disabled={loading.category}
+              className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading.category ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save Category
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -206,4 +288,5 @@ export default function CategoryForm() {
     </div>
   )
 }
+
 

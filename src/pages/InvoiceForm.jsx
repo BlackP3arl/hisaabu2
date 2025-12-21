@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
@@ -9,24 +9,67 @@ import PrintPreview from '../components/PrintPreview'
 export default function InvoiceForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { invoices, clients, categories, addInvoice, updateInvoice } = useData()
-  const invoice = id ? invoices.find(i => i.id === parseInt(id)) : null
+  const { getInvoice, createInvoice, updateInvoice, fetchClients, fetchCategories, clients, categories, loading } = useData()
+  const [invoice, setInvoice] = useState(null)
+  const [formError, setFormError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const [showItemSelector, setShowItemSelector] = useState(false)
   const [showClientSelector, setShowClientSelector] = useState(false)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [formData, setFormData] = useState({
-    clientId: invoice?.clientId || '',
-    date: invoice?.date || new Date().toISOString().split('T')[0],
-    due: invoice?.due || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    status: invoice?.status || 'draft',
-    items: invoice?.items?.length > 0 ? invoice.items : [],
-    notes: invoice?.notes || '',
-    terms: invoice?.terms || '',
+    clientId: '',
+    issueDate: new Date().toISOString().split('T')[0],
+    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    status: 'draft',
+    items: [],
+    notes: '',
+    terms: '',
   })
 
+  // Load clients and categories on mount
+  useEffect(() => {
+    fetchClients()
+    fetchCategories()
+  }, [fetchClients, fetchCategories])
+
+  // Load invoice data if editing
+  useEffect(() => {
+    if (id) {
+      const loadInvoice = async () => {
+        try {
+          const invoiceData = await getInvoice(parseInt(id))
+          if (invoiceData) {
+            setInvoice(invoiceData)
+            setFormData({
+              clientId: invoiceData.clientId || '',
+              issueDate: invoiceData.issueDate || invoiceData.date || new Date().toISOString().split('T')[0],
+              dueDate: invoiceData.dueDate || invoiceData.due || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              status: invoiceData.status || 'draft',
+              items: invoiceData.items?.map(item => ({
+                itemId: item.itemId,
+                name: item.name,
+                description: item.description || '',
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                discountPercent: item.discountPercent || item.discount || 0,
+                taxPercent: item.taxPercent || item.tax || 0,
+                categoryId: item.categoryId,
+              })) || [],
+              notes: invoiceData.notes || '',
+              terms: invoiceData.terms || '',
+            })
+          }
+        } catch (err) {
+          setFormError('Failed to load invoice data')
+        }
+      }
+      loadInvoice()
+    }
+  }, [id, getInvoice])
+
   const client = clients.find(c => c.id === formData.clientId)
-  const number = invoice?.number || `INV-${String(invoices.length + 1).padStart(4, '0')}`
+  const number = invoice?.number || ''
 
   const getCategoryColor = (categoryId) => {
     const category = categories.find(c => c.id === categoryId)
@@ -35,11 +78,16 @@ export default function InvoiceForm() {
 
   const calculateTotals = () => {
     const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-    const discount = formData.items.reduce((sum, item) => sum + (item.quantity * item.price * item.discount / 100), 0)
+    const discount = formData.items.reduce((sum, item) => {
+      const itemDiscount = item.discountPercent || item.discount || 0
+      return sum + (item.quantity * item.price * itemDiscount / 100)
+    }, 0)
     const afterDiscount = subtotal - discount
     const tax = formData.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.price * (1 - item.discount / 100)
-      return sum + (itemTotal * item.tax / 100)
+      const itemDiscount = item.discountPercent || item.discount || 0
+      const itemTax = item.taxPercent || item.tax || 0
+      const itemTotal = item.quantity * item.price * (1 - itemDiscount / 100)
+      return sum + (itemTotal * itemTax / 100)
     }, 0)
     const total = afterDiscount + tax
     return { subtotal, discount, tax, total }
@@ -59,12 +107,28 @@ export default function InvoiceForm() {
   }
 
   const handleAddItem = (item) => {
-    setFormData({ ...formData, items: [...formData.items, item] })
+    const newItem = {
+      itemId: item.id,
+      name: item.name,
+      description: item.description || '',
+      quantity: 1,
+      price: item.rate || item.price || 0,
+      discountPercent: 0,
+      taxPercent: 0,
+      categoryId: item.categoryId,
+    }
+    setFormData({ ...formData, items: [...formData.items, newItem] })
   }
 
   const handleUpdateItem = (index, field, value) => {
     const newItems = [...formData.items]
-    newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+    if (field === 'discount' || field === 'discountPercent') {
+      newItems[index] = { ...newItems[index], discountPercent: parseFloat(value) || 0 }
+    } else if (field === 'tax' || field === 'taxPercent') {
+      newItems[index] = { ...newItems[index], taxPercent: parseFloat(value) || 0 }
+    } else {
+      newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+    }
     setFormData({ ...formData, items: newItems })
   }
 
@@ -87,19 +151,46 @@ export default function InvoiceForm() {
     return colors[index]
   }
 
-  const handleSave = () => {
-    const data = {
-      ...formData,
-      number,
-      amount: total,
-      clientName: client?.name || '',
+  const handleSave = async () => {
+    setFormError(null)
+    if (!formData.clientId) {
+      setFormError('Please select a client')
+      return
     }
-    if (id) {
-      updateInvoice(parseInt(id), data)
-    } else {
-      addInvoice(data)
+    if (formData.items.length === 0) {
+      setFormError('Please add at least one item')
+      return
     }
-    navigate('/invoices')
+    
+    setSubmitting(true)
+    try {
+      const data = {
+        clientId: parseInt(formData.clientId),
+        issueDate: formData.issueDate,
+        dueDate: formData.dueDate,
+        status: formData.status,
+        items: formData.items.map(item => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          price: item.price,
+          discountPercent: item.discountPercent || 0,
+          taxPercent: item.taxPercent || 0,
+        })),
+        notes: formData.notes,
+        terms: formData.terms,
+      }
+      
+      if (id) {
+        await updateInvoice(parseInt(id), data)
+      } else {
+        await createInvoice(data)
+      }
+      navigate('/invoices')
+    } catch (err) {
+      setFormError(err.response?.data?.error?.message || 'Failed to save invoice')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -133,9 +224,22 @@ export default function InvoiceForm() {
               <span className="material-symbols-outlined text-[20px]">download</span>
               PDF
             </button>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-              <span className="material-symbols-outlined text-[20px]">send</span>
-              Send Invoice
+            <button 
+              onClick={handleSave} 
+              disabled={submitting || loading.invoice}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">send</span>
+                  Send Invoice
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -155,6 +259,20 @@ export default function InvoiceForm() {
 
         {/* Content */}
         <div className="flex-1 p-4 lg:p-8">
+          {formError && (
+            <div className="max-w-6xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+              <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+            </div>
+          )}
+          {id && loading.invoice && !invoice && (
+            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
+              <div className="text-center">
+                <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+                <p className="text-slate-500 dark:text-slate-400">Loading invoice data...</p>
+              </div>
+            </div>
+          )}
+          {(!id || invoice) && (
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Left Column - Main Form */}
@@ -185,8 +303,8 @@ export default function InvoiceForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        value={formData.issueDate}
+                        onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -194,8 +312,8 @@ export default function InvoiceForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.due}
-                        onChange={(e) => setFormData({ ...formData, due: e.target.value })}
+                        value={formData.dueDate}
+                        onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                       />
                     </label>
                   </div>
@@ -292,21 +410,21 @@ export default function InvoiceForm() {
                                 <td className="px-4 py-3 text-right">
                                   <input 
                                     type="number" 
-                                    value={item.discount} 
-                                    onChange={(e) => handleUpdateItem(index, 'discount', e.target.value)}
+                                    value={item.discountPercent || item.discount || 0} 
+                                    onChange={(e) => handleUpdateItem(index, 'discountPercent', e.target.value)}
                                     className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input 
                                     type="number" 
-                                    value={item.tax} 
-                                    onChange={(e) => handleUpdateItem(index, 'tax', e.target.value)}
+                                    value={item.taxPercent || item.tax || 0} 
+                                    onChange={(e) => handleUpdateItem(index, 'taxPercent', e.target.value)}
                                     className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  ${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}
+                                  ${((item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100)) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button 
@@ -449,11 +567,31 @@ export default function InvoiceForm() {
 
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
-                    <button onClick={handleSave} className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">send</span>
-                      Send Invoice
+                    <button 
+                      onClick={handleSave} 
+                      disabled={submitting || loading.invoice}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[20px]">send</span>
+                          Send Invoice
+                        </>
+                      )}
                     </button>
-                    <button className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <button 
+                      onClick={() => {
+                        setFormData({ ...formData, status: 'draft' })
+                        handleSave()
+                      }}
+                      disabled={submitting || loading.invoice}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                    >
                       <span className="material-symbols-outlined text-[20px]">save</span>
                       Save as Draft
                     </button>
@@ -462,6 +600,7 @@ export default function InvoiceForm() {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Mobile Bottom Bar */}
@@ -474,9 +613,22 @@ export default function InvoiceForm() {
               <span className="material-symbols-outlined text-[20px]">visibility</span>
               Preview
             </button>
-            <button onClick={handleSave} className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
-              <span className="material-symbols-outlined text-[20px]">send</span>
-              Send Invoice
+            <button 
+              onClick={handleSave} 
+              disabled={submitting || loading.invoice}
+              className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">send</span>
+                  Send Invoice
+                </>
+              )}
             </button>
           </div>
         </div>

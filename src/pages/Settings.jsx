@@ -1,10 +1,88 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
+import { handleApiError } from '../utils/errorHandler'
 
 export default function Settings() {
-  const { company, settings } = useData()
+  const { companySettings, loading, fetchCompanySettings, updateCompanySettings, uploadCompanyLogo } = useData()
   const [activeTab, setActiveTab] = useState('profile')
+  const [formData, setFormData] = useState({
+    companyName: '',
+    email: '',
+    phone: '',
+    address: '',
+    shippingAddress: '',
+    gst: '',
+    registration: '',
+    defaultTax: 0,
+    currency: 'USD',
+    invoicePrefix: 'INV',
+    quotationPrefix: 'QUO',
+    dateFormat: 'MM/DD/YYYY',
+    paymentTerms: 30,
+    terms: '',
+    enableTaxPerItem: false,
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+
+  useEffect(() => {
+    fetchCompanySettings()
+  }, [fetchCompanySettings])
+
+  useEffect(() => {
+    if (companySettings) {
+      setFormData({
+        companyName: companySettings.companyName || '',
+        email: companySettings.email || '',
+        phone: companySettings.phone || '',
+        address: companySettings.address || '',
+        shippingAddress: companySettings.shippingAddress || '',
+        gst: companySettings.gst || '',
+        registration: companySettings.registration || '',
+        defaultTax: companySettings.defaultTax || 0,
+        currency: companySettings.currency || 'USD',
+        invoicePrefix: companySettings.invoicePrefix || 'INV',
+        quotationPrefix: companySettings.quotationPrefix || 'QUO',
+        dateFormat: companySettings.dateFormat || 'MM/DD/YYYY',
+        paymentTerms: companySettings.paymentTerms || 30,
+        terms: companySettings.terms || '',
+        enableTaxPerItem: companySettings.enableTaxPerItem || false,
+      })
+    }
+  }, [companySettings])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await updateCompanySettings(formData)
+      setSuccess('Settings saved successfully!')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      setError(handleApiError(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSaving(true)
+    setError(null)
+    try {
+      await uploadCompanyLogo(file)
+      setSuccess('Logo uploaded successfully!')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      setError(handleApiError(err))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const tabs = [
     { id: 'profile', label: 'Company Profile', icon: 'business' },
@@ -57,6 +135,14 @@ export default function Settings() {
         {/* Content Area */}
         <div className="flex-1 p-4 lg:p-8">
           <div className="max-w-2xl">
+            {(error || success) && (
+              <div className={`mb-4 rounded-xl p-4 text-sm ${
+                error ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200' :
+                'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+              }`}>
+                {error || success}
+              </div>
+            )}
             {activeTab === 'profile' && (
               <div className="space-y-6">
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
@@ -65,12 +151,17 @@ export default function Settings() {
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Company Logo</label>
                     <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center">
-                        <span className="material-symbols-outlined text-4xl text-slate-400">business</span>
+                      <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+                        {companySettings?.logoUrl ? (
+                          <img src={companySettings.logoUrl} alt="Company Logo" className="w-full h-full object-contain" />
+                        ) : (
+                          <span className="material-symbols-outlined text-4xl text-slate-400">business</span>
+                        )}
                       </div>
-                      <button className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                      <label className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+                        <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                         Upload Logo
-                      </button>
+                      </label>
                     </div>
                   </div>
 
@@ -79,7 +170,8 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Company Name</label>
                       <input
                         type="text"
-                        defaultValue={company.name}
+                        value={formData.companyName}
+                        onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
@@ -87,7 +179,8 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
                       <input
                         type="email"
-                        defaultValue={company.email}
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
@@ -95,7 +188,8 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Phone</label>
                       <input
                         type="tel"
-                        defaultValue={company.phone}
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
@@ -103,14 +197,16 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">GST/TIN Number</label>
                       <input
                         type="text"
-                        defaultValue={company.gst}
+                        value={formData.gst}
+                        onChange={(e) => setFormData({ ...formData, gst: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Registered Address</label>
                       <textarea
-                        defaultValue={company.address}
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary p-3"
                         rows="2"
                       />
@@ -118,7 +214,8 @@ export default function Settings() {
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Shipping Address</label>
                       <textarea
-                        defaultValue={company.shippingAddress}
+                        value={formData.shippingAddress}
+                        onChange={(e) => setFormData({ ...formData, shippingAddress: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary p-3"
                         rows="2"
                       />
@@ -127,15 +224,27 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Registration Number</label>
                       <input
                         type="text"
-                        defaultValue={company.registration}
+                        value={formData.registration}
+                        onChange={(e) => setFormData({ ...formData, registration: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
                   </div>
                 </div>
 
-                <button className="w-full lg:w-auto px-6 rounded-lg bg-primary py-3 text-white font-semibold shadow-md hover:bg-blue-600 transition-colors">
-                  Save Changes
+                <button 
+                  onClick={handleSave}
+                  disabled={saving || loading.settings}
+                  className="w-full lg:w-auto px-6 rounded-lg bg-primary py-3 text-white font-semibold shadow-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving || loading.settings ? (
+                    <>
+                      <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             )}
@@ -149,13 +258,18 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Tax Rate (%)</label>
                       <input
                         type="number"
-                        defaultValue={settings.defaultTax}
+                        value={formData.defaultTax}
+                        onChange={(e) => setFormData({ ...formData, defaultTax: parseFloat(e.target.value) || 0 })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Currency</label>
-                      <select className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3">
+                      <select 
+                        value={formData.currency}
+                        onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                        className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                      >
                         <option value="USD">USD - US Dollar</option>
                         <option value="EUR">EUR - Euro</option>
                         <option value="GBP">GBP - British Pound</option>
@@ -170,15 +284,33 @@ export default function Settings() {
                         <p className="font-medium text-slate-900 dark:text-white">Enable Tax per Item</p>
                         <p className="text-sm text-slate-500 dark:text-slate-400">Allow different tax rates for individual items</p>
                       </div>
-                      <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-primary">
-                        <span className="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6"></span>
+                      <button 
+                        onClick={() => setFormData({ ...formData, enableTaxPerItem: !formData.enableTaxPerItem })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          formData.enableTaxPerItem ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                          formData.enableTaxPerItem ? 'translate-x-6' : 'translate-x-1'
+                        }`}></span>
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <button className="w-full lg:w-auto px-6 rounded-lg bg-primary py-3 text-white font-semibold shadow-md hover:bg-blue-600 transition-colors">
-                  Save Changes
+                <button 
+                  onClick={handleSave}
+                  disabled={saving || loading.settings}
+                  className="w-full lg:w-auto px-6 rounded-lg bg-primary py-3 text-white font-semibold shadow-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving || loading.settings ? (
+                    <>
+                      <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             )}
@@ -192,7 +324,8 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Invoice Prefix</label>
                       <input
                         type="text"
-                        defaultValue={settings.invoicePrefix}
+                        value={formData.invoicePrefix}
+                        onChange={(e) => setFormData({ ...formData, invoicePrefix: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
@@ -200,13 +333,18 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quotation Prefix</label>
                       <input
                         type="text"
-                        defaultValue={settings.quotationPrefix}
+                        value={formData.quotationPrefix}
+                        onChange={(e) => setFormData({ ...formData, quotationPrefix: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date Format</label>
-                      <select className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3">
+                      <select 
+                        value={formData.dateFormat}
+                        onChange={(e) => setFormData({ ...formData, dateFormat: e.target.value })}
+                        className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                      >
                         <option value="MM/DD/YYYY">MM/DD/YYYY</option>
                         <option value="DD/MM/YYYY">DD/MM/YYYY</option>
                         <option value="YYYY-MM-DD">YYYY-MM-DD</option>
@@ -216,14 +354,16 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Terms (Days)</label>
                       <input
                         type="number"
-                        defaultValue="30"
+                        value={formData.paymentTerms}
+                        onChange={(e) => setFormData({ ...formData, paymentTerms: parseInt(e.target.value) || 30 })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                       />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Terms & Conditions Template</label>
                       <textarea
-                        defaultValue={settings.terms}
+                        value={formData.terms}
+                        onChange={(e) => setFormData({ ...formData, terms: e.target.value })}
                         className="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary p-3"
                         rows="4"
                       />
@@ -231,8 +371,19 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <button className="w-full lg:w-auto px-6 rounded-lg bg-primary py-3 text-white font-semibold shadow-md hover:bg-blue-600 transition-colors">
-                  Save Changes
+                <button 
+                  onClick={handleSave}
+                  disabled={saving || loading.settings}
+                  className="w-full lg:w-auto px-6 rounded-lg bg-primary py-3 text-white font-semibold shadow-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving || loading.settings ? (
+                    <>
+                      <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             )}

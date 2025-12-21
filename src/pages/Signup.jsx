@@ -1,15 +1,66 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import apiClient from '../api/client'
+import { handleApiError, getValidationErrors } from '../utils/errorHandler'
+import { setAuth } from '../utils/auth'
 
 export default function Signup() {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [validationErrors, setValidationErrors] = useState({})
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    navigate('/login')
+    setError(null)
+    setValidationErrors({})
+
+    // Client-side validation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const { data } = await apiClient.post('/auth/register', {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword
+      })
+
+      if (data.success && data.data) {
+        // Store tokens and user data
+        setAuth(
+          data.data.token,
+          data.data.refreshToken,
+          data.data.user
+        )
+        
+        // Auto-login after successful registration
+        navigate('/')
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      if (typeof errorMessage === 'object' && errorMessage.details) {
+        setValidationErrors(errorMessage.details)
+        setError(errorMessage.message)
+      } else {
+        setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Registration failed')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -85,20 +136,41 @@ export default function Signup() {
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5 w-full">
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-2">
+                <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
+                {Object.keys(validationErrors).length > 0 && (
+                  <ul className="mt-2 list-disc list-inside text-sm">
+                    {Object.entries(validationErrors).map(([field, errors]) => (
+                      <li key={field} className="text-red-700 dark:text-red-300">
+                        {Array.isArray(errors) ? errors.join(', ') : errors}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col w-full sm:col-span-2 lg:col-span-1">
                 <label className="text-slate-900 dark:text-white text-sm font-medium leading-normal pb-2">Full Name</label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">person</span>
                   <input
-                    className="w-full rounded-xl text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-4 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className={`w-full rounded-xl text-slate-900 dark:text-white border bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-4 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50 ${
+                      validationErrors.name ? 'border-red-300 dark:border-red-700' : 'border-slate-300 dark:border-slate-700'
+                    }`}
                     placeholder="John Doe"
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
+                    disabled={loading}
                   />
                 </div>
+                {validationErrors.name && (
+                  <p className="text-red-600 dark:text-red-400 text-xs mt-1">{Array.isArray(validationErrors.name) ? validationErrors.name[0] : validationErrors.name}</p>
+                )}
               </div>
 
               <div className="flex flex-col w-full sm:col-span-2 lg:col-span-1">
@@ -106,14 +178,20 @@ export default function Signup() {
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">mail</span>
                   <input
-                    className="w-full rounded-xl text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-4 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className={`w-full rounded-xl text-slate-900 dark:text-white border bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-4 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50 ${
+                      validationErrors.email ? 'border-red-300 dark:border-red-700' : 'border-slate-300 dark:border-slate-700'
+                    }`}
                     placeholder="john@example.com"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
+                    disabled={loading}
                   />
                 </div>
+                {validationErrors.email && (
+                  <p className="text-red-600 dark:text-red-400 text-xs mt-1">{Array.isArray(validationErrors.email) ? validationErrors.email[0] : validationErrors.email}</p>
+                )}
               </div>
             </div>
 
@@ -122,21 +200,28 @@ export default function Signup() {
               <div className="relative w-full">
                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
                 <input
-                  className="w-full rounded-xl text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-12 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  className={`w-full rounded-xl text-slate-900 dark:text-white border bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-12 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50 ${
+                    validationErrors.password ? 'border-red-300 dark:border-red-700' : 'border-slate-300 dark:border-slate-700'
+                  }`}
                   placeholder="Min. 8 characters"
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-0 top-0 h-full px-4 text-slate-400 hover:text-primary flex items-center justify-center transition-colors"
+                  disabled={loading}
                 >
                   <span className="material-symbols-outlined text-[20px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
+              {validationErrors.password && (
+                <p className="text-red-600 dark:text-red-400 text-xs mt-1">{Array.isArray(validationErrors.password) ? validationErrors.password[0] : validationErrors.password}</p>
+              )}
             </div>
 
             <div className="flex flex-col w-full">
@@ -144,21 +229,30 @@ export default function Signup() {
               <div className="relative w-full">
                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
                 <input
-                  className="w-full rounded-xl text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-12 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  className={`w-full rounded-xl text-slate-900 dark:text-white border bg-white dark:bg-slate-800 h-12 placeholder:text-slate-400 pl-11 pr-12 text-base focus:outline-0 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50 ${
+                    validationErrors.confirmPassword || (formData.password !== formData.confirmPassword && formData.confirmPassword) ? 'border-red-300 dark:border-red-700' : 'border-slate-300 dark:border-slate-700'
+                  }`}
                   placeholder="Re-enter password"
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   required
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-0 top-0 h-full px-4 text-slate-400 hover:text-primary flex items-center justify-center transition-colors"
+                  disabled={loading}
                 >
                   <span className="material-symbols-outlined text-[20px]">{showConfirmPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
+              {(validationErrors.confirmPassword || (formData.password !== formData.confirmPassword && formData.confirmPassword)) && (
+                <p className="text-red-600 dark:text-red-400 text-xs mt-1">
+                  {validationErrors.confirmPassword ? (Array.isArray(validationErrors.confirmPassword) ? validationErrors.confirmPassword[0] : validationErrors.confirmPassword) : 'Passwords do not match'}
+                </p>
+              )}
             </div>
 
             <div className="flex items-start gap-3 pt-2">
@@ -170,9 +264,17 @@ export default function Signup() {
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center rounded-xl h-12 px-4 bg-primary text-white text-base font-bold hover:bg-blue-600 active:scale-[0.98] transition-all shadow-lg shadow-primary/25 mt-2"
+              disabled={loading}
+              className="flex w-full items-center justify-center rounded-xl h-12 px-4 bg-primary text-white text-base font-bold hover:bg-blue-600 active:scale-[0.98] transition-all shadow-lg shadow-primary/25 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account
+              {loading ? (
+                <>
+                  <span className="material-symbols-outlined animate-spin mr-2">sync</span>
+                  Creating account...
+                </>
+              ) : (
+                'Create Account'
+              )}
             </button>
           </form>
 

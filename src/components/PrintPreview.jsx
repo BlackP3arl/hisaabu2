@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import { useData } from '../context/DataContext'
+import { handleApiError } from '../utils/errorHandler'
+import apiClient from '../api/client'
 
 export default function PrintPreview({ 
   type = 'invoice', // 'invoice' or 'quotation'
@@ -7,10 +9,13 @@ export default function PrintPreview({
   client,
   onClose 
 }) {
-  const { company, settings } = useData()
+  const { companySettings, loading, generateShareLink } = useData()
   const printRef = useRef(null)
   const [showShareLink, setShowShareLink] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [shareLink, setShareLink] = useState(null)
+  const [generatingLink, setGeneratingLink] = useState(false)
+  const [error, setError] = useState(null)
 
   const isQuotation = type === 'quotation'
   const documentTitle = isQuotation ? 'QUOTATION' : 'INVOICE'
@@ -47,14 +52,29 @@ export default function PrintPreview({
     return styles[data.status] || styles.draft
   }
 
-  // Generate secure share link
-  const generateShareLink = () => {
-    const baseUrl = window.location.origin
-    const documentId = data.id || 1 // Use document ID if available
-    return `${baseUrl}/share/${type}/${documentId}`
+  // Generate secure share link via API
+  const handleGenerateShareLink = async () => {
+    if (shareLink) {
+      setShowShareLink(true)
+      return
+    }
+    setGeneratingLink(true)
+    setError(null)
+    try {
+      const link = await generateShareLink(
+        type === 'quotation' ? 'quotation' : 'invoice',
+        data.id,
+        null // No password for now, can be added later
+      )
+      const baseUrl = window.location.origin
+      setShareLink(`${baseUrl}/share/${type}/${link.token}`)
+      setShowShareLink(true)
+    } catch (err) {
+      setError(handleApiError(err))
+    } finally {
+      setGeneratingLink(false)
+    }
   }
-
-  const shareLink = generateShareLink()
 
   const handleCopyLink = async () => {
     try {
@@ -155,11 +175,21 @@ export default function PrintPreview({
           </div>
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => setShowShareLink(!showShareLink)}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              onClick={handleGenerateShareLink}
+              disabled={generatingLink}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-[18px]">share</span>
-              Share Link
+              {generatingLink ? (
+                <>
+                  <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[18px]">share</span>
+                  Share Link
+                </>
+              )}
             </button>
             <button 
               onClick={handlePrint}
@@ -169,7 +199,25 @@ export default function PrintPreview({
               Print
             </button>
             <button 
-              onClick={handlePrint}
+              onClick={async () => {
+                try {
+                  const endpoint = `/${type === 'quotation' ? 'quotations' : 'invoices'}/${data.id}/pdf`
+                  const response = await apiClient.get(endpoint, {
+                    responseType: 'blob'
+                  })
+                  const url = window.URL.createObjectURL(new Blob([response.data]))
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.setAttribute('download', `${type}-${data.number || data.id}.pdf`)
+                  document.body.appendChild(link)
+                  link.click()
+                  link.remove()
+                  window.URL.revokeObjectURL(url)
+                } catch (err) {
+                  const errorMessage = handleApiError(err)
+                  alert(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to download PDF')
+                }
+              }}
               className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">download</span>
@@ -187,6 +235,11 @@ export default function PrintPreview({
         {/* Share Link Section */}
         {showShareLink && (
           <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+            {error && (
+              <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-800 dark:text-red-200">
+                {error}
+              </div>
+            )}
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-primary text-[20px]">link</span>
@@ -196,30 +249,34 @@ export default function PrintPreview({
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
                   Share this link with your client. They'll need a password to view the document.
                 </p>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2.5 flex items-center gap-2 min-w-0">
-                    <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0">link</span>
-                    <input
-                      type="text"
-                      value={shareLink}
-                      readOnly
-                      className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white min-w-0 outline-none"
-                    />
+                {shareLink ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2.5 flex items-center gap-2 min-w-0">
+                      <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0">link</span>
+                      <input
+                        type="text"
+                        value={shareLink}
+                        readOnly
+                        className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white min-w-0 outline-none"
+                      />
+                    </div>
+                    <button
+                      onClick={handleCopyLink}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors shrink-0 ${
+                        linkCopied
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-primary text-white hover:bg-blue-600'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">
+                        {linkCopied ? 'check_circle' : 'content_copy'}
+                      </span>
+                      {linkCopied ? 'Copied!' : 'Copy'}
+                    </button>
                   </div>
-                  <button
-                    onClick={handleCopyLink}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors shrink-0 ${
-                      linkCopied
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-primary text-white hover:bg-blue-600'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">
-                      {linkCopied ? 'check_circle' : 'content_copy'}
-                    </span>
-                    {linkCopied ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Generating link...</p>
+                )}
                 <div className="mt-3 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px]">lock</span>
@@ -254,12 +311,12 @@ export default function PrintPreview({
                 <div className="w-14 h-14 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-primary/30">
                   <span className="material-symbols-outlined text-white text-3xl">business</span>
                 </div>
-                <h1 className="text-2xl font-bold text-slate-900">{company.name}</h1>
-                <p className="text-slate-500 text-sm mt-1">{company.address}</p>
-                <p className="text-slate-500 text-sm">{company.email}</p>
-                <p className="text-slate-500 text-sm">{company.phone}</p>
-                {company.gst && (
-                  <p className="text-slate-400 text-xs mt-2">GST: {company.gst}</p>
+                <h1 className="text-2xl font-bold text-slate-900">{companySettings?.companyName || 'Company Name'}</h1>
+                <p className="text-slate-500 text-sm mt-1">{companySettings?.address || ''}</p>
+                <p className="text-slate-500 text-sm">{companySettings?.email || ''}</p>
+                <p className="text-slate-500 text-sm">{companySettings?.phone || ''}</p>
+                {companySettings?.gst && (
+                  <p className="text-slate-400 text-xs mt-2">GST: {companySettings.gst}</p>
                 )}
               </div>
               <div className="text-left sm:text-right">
@@ -375,13 +432,13 @@ export default function PrintPreview({
                   <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-400">{settings.currency}</span>
+                  <span className="text-xs text-slate-400">{companySettings?.currency || 'USD'}</span>
                 </div>
               </div>
             </div>
 
             {/* Notes & Terms */}
-            {(data.notes || data.terms || settings.terms) && (
+            {(data.notes || data.terms || companySettings?.terms) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
                 {(data.notes) && (
                   <div className="p-5 bg-blue-50 rounded-xl border border-blue-100">
@@ -393,11 +450,11 @@ export default function PrintPreview({
                   </div>
                 )}
                 <div className="p-5 bg-amber-50 rounded-xl border border-amber-100">
-                  <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-amber-600 text-[18px]">gavel</span>
-                    Terms & Conditions
-                  </h4>
-                  <p className="text-sm text-slate-600">{data.terms || settings.terms}</p>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-600 text-[18px]">gavel</span>
+                      Terms & Conditions
+                    </h4>
+                    <p className="text-sm text-slate-600">{data.terms || companySettings?.terms || ''}</p>
                 </div>
               </div>
             )}
@@ -405,7 +462,9 @@ export default function PrintPreview({
             {/* Footer */}
             <div className="text-center pt-8 border-t border-slate-200">
               <p className="text-sm text-slate-500 mb-1">Thank you for your business!</p>
-              <p className="text-xs text-slate-400">{company.name} • {company.email} • {company.phone}</p>
+              <p className="text-xs text-slate-400">
+                {companySettings?.companyName || ''} • {companySettings?.email || ''} • {companySettings?.phone || ''}
+              </p>
             </div>
           </div>
         </div>
@@ -466,7 +525,25 @@ export default function PrintPreview({
               Print
             </button>
             <button 
-              onClick={handlePrint}
+              onClick={async () => {
+                try {
+                  const endpoint = `/${type === 'quotation' ? 'quotations' : 'invoices'}/${data.id}/pdf`
+                  const response = await apiClient.get(endpoint, {
+                    responseType: 'blob'
+                  })
+                  const url = window.URL.createObjectURL(new Blob([response.data]))
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.setAttribute('download', `${type}-${data.number || data.id}.pdf`)
+                  document.body.appendChild(link)
+                  link.click()
+                  link.remove()
+                  window.URL.revokeObjectURL(url)
+                } catch (err) {
+                  const errorMessage = handleApiError(err)
+                  alert(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to download PDF')
+                }
+              }}
               className="flex-1 flex items-center justify-center gap-2 py-3 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 font-semibold"
             >
               <span className="material-symbols-outlined text-[20px]">download</span>

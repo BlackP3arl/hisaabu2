@@ -1,18 +1,51 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
 
 export default function InvoicesList() {
-  const { invoices } = useData()
+  const { invoices, loading, pagination, fetchInvoices, deleteInvoice } = useData()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [page, setPage] = useState(1)
 
-  const filteredInvoices = invoices.filter(i => {
-    const matchesSearch = !search || i.clientName.toLowerCase().includes(search.toLowerCase()) || i.number.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = filter === 'all' || i.status === filter
-    return matchesSearch && matchesFilter
-  })
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Fetch invoices when filters change
+  useEffect(() => {
+    const params = {
+      page,
+      limit: 20,
+      ...(debouncedSearch && { search: debouncedSearch }),
+      ...(filter !== 'all' && { status: filter })
+    }
+    fetchInvoices(params)
+  }, [page, debouncedSearch, filter, fetchInvoices])
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this invoice?')) {
+      try {
+        await deleteInvoice(id)
+        const params = {
+          page,
+          limit: 20,
+          ...(debouncedSearch && { search: debouncedSearch }),
+          ...(filter !== 'all' && { status: filter })
+        }
+        fetchInvoices(params)
+      } catch (err) {
+        console.error('Failed to delete invoice:', err)
+      }
+    }
+  }
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -50,10 +83,25 @@ export default function InvoicesList() {
     </Link>
   )
 
+  const invoicePagination = pagination.invoices
+
+  if (loading.invoices && invoices.length === 0) {
+    return (
+      <Layout title="Invoices" actions={headerActions}>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+            <p className="text-slate-500 dark:text-slate-400">Loading invoices...</p>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
   return (
     <Layout 
       title="Invoices" 
-      subtitle={`${filteredInvoices.length} Total Invoices`}
+      subtitle={`${invoicePagination?.total || 0} Total Invoices`}
       actions={headerActions}
     >
       {/* Search & Filters */}
@@ -106,88 +154,121 @@ export default function InvoicesList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredInvoices.map((invoice) => (
-                <tr key={invoice.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
-                        {invoice.clientName.charAt(0)}
+              {invoices.map((invoice) => {
+                const issueDate = invoice.issueDate || invoice.date
+                const dueDate = invoice.dueDate || invoice.due
+                const clientName = invoice.client?.name || invoice.clientName || 'Unknown Client'
+                const totalAmount = invoice.totalAmount || invoice.amount || 0
+                const paidAmount = invoice.paidAmount || invoice.paid || 0
+                return (
+                  <tr key={invoice.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                          {clientName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900 dark:text-white">{clientName}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">{invoice.clientName}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm font-mono text-slate-600 dark:text-slate-300">{invoice.number}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">{new Date(invoice.date).toLocaleDateString()}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`text-sm ${invoice.status === 'overdue' ? 'text-red-500 font-medium' : 'text-slate-600 dark:text-slate-300'}`}>
-                      {new Date(invoice.due).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">${invoice.amount.toLocaleString()}.00</span>
-                    {invoice.status === 'partial' && invoice.paid && (
-                      <p className="text-xs text-amber-600 mt-0.5">Paid: ${invoice.paid.toLocaleString()}</p>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-center">
-                      <span className={`px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${getStatusBadge(invoice.status)}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${getStatusColor(invoice.status)}`}></span>
-                        {getStatusText(invoice.status)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-mono text-slate-600 dark:text-slate-300">{invoice.number}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">{issueDate ? new Date(issueDate).toLocaleDateString() : 'N/A'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-sm ${invoice.status === 'overdue' ? 'text-red-500 font-medium' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A'}
                       </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link
-                        to={`/invoices/${invoice.id}/view`}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                        title="View"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">visibility</span>
-                      </Link>
-                      <Link
-                        to={`/invoices/${invoice.id}`}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">edit</span>
-                      </Link>
-                      <button
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                        title="Share"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">share</span>
-                      </button>
-                      <button
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                        title="Download PDF"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">download</span>
-                      </button>
-                      <button
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">delete</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      {invoice.status === 'partial' && paidAmount > 0 && (
+                        <p className="text-xs text-amber-600 mt-0.5">Paid: ${paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-center">
+                        <span className={`px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${getStatusBadge(invoice.status)}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${getStatusColor(invoice.status)}`}></span>
+                          {getStatusText(invoice.status)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          to={`/invoices/${invoice.id}/view`}
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                          title="View"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">visibility</span>
+                        </Link>
+                        <Link
+                          to={`/invoices/${invoice.id}`}
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">edit</span>
+                        </Link>
+                        <button
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                          title="Share"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">share</span>
+                        </button>
+                        <button
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                          title="Download PDF"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">download</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(invoice.id)}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
 
-          {filteredInvoices.length === 0 && (
+          {invoices.length === 0 && !loading.invoices && (
             <div className="text-center py-12">
               <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">receipt_long</span>
               <p className="text-slate-500 dark:text-slate-400">No invoices found</p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {invoicePagination?.totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Showing {((invoicePagination.page - 1) * invoicePagination.limit) + 1} to {Math.min(invoicePagination.page * invoicePagination.limit, invoicePagination.total)} of {invoicePagination.total}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={!invoicePagination.hasPrev || loading.invoices}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.min(invoicePagination.totalPages, p + 1))}
+                  disabled={!invoicePagination.hasNext || loading.invoices}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -195,7 +276,12 @@ export default function InvoicesList() {
 
       {/* Mobile Card View */}
       <div className="lg:hidden px-4 py-4 space-y-4">
-        {filteredInvoices.map((invoice) => (
+        {invoices.map((invoice) => {
+          const issueDate = invoice.issueDate || invoice.date
+          const dueDate = invoice.dueDate || invoice.due
+          const clientName = invoice.client?.name || invoice.clientName || 'Unknown Client'
+          const totalAmount = invoice.totalAmount || invoice.amount || 0
+          return (
           <Link
             key={invoice.id}
             to={`/invoices/${invoice.id}/view`}
@@ -204,21 +290,21 @@ export default function InvoicesList() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                  {invoice.clientName.charAt(0)}
+                  {clientName.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="text-slate-900 dark:text-white text-sm font-bold leading-tight">{invoice.clientName}</h3>
+                  <h3 className="text-slate-900 dark:text-white text-sm font-bold leading-tight">{clientName}</h3>
                   <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">{invoice.number}</p>
                 </div>
               </div>
               <div className="flex flex-col items-end">
-                <span className="text-slate-900 dark:text-white font-bold text-base">${invoice.amount.toLocaleString()}.00</span>
+                <span className="text-slate-900 dark:text-white font-bold text-base">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 <span className={`text-[10px] font-medium mt-0.5 ${
                   invoice.status === 'overdue' ? 'text-red-500 dark:text-red-400' :
                   invoice.status === 'partial' ? 'text-amber-600 dark:text-amber-400' :
                   'text-slate-400 dark:text-slate-500'
                 }`}>
-                  Due {new Date(invoice.due).toLocaleDateString()}
+                  {dueDate ? `Due ${new Date(dueDate).toLocaleDateString()}` : 'No due date'}
                 </span>
               </div>
             </div>
@@ -253,12 +339,36 @@ export default function InvoicesList() {
               </div>
             </div>
           </Link>
-        ))}
+          )
+        })}
 
-        {filteredInvoices.length === 0 && (
+        {invoices.length === 0 && !loading.invoices && (
           <div className="text-center py-12">
             <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">receipt_long</span>
             <p className="text-slate-500 dark:text-slate-400">No invoices found</p>
+          </div>
+        )}
+
+        {/* Mobile Pagination */}
+        {invoicePagination?.totalPages > 1 && (
+          <div className="px-4 py-4 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={!invoicePagination.hasPrev || loading.invoices}
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <div className="text-sm text-slate-500 dark:text-slate-400">
+              Page {invoicePagination.page} of {invoicePagination.totalPages}
+            </div>
+            <button
+              onClick={() => setPage(p => Math.min(invoicePagination.totalPages, p + 1))}
+              disabled={!invoicePagination.hasNext || loading.invoices}
+              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
           </div>
         )}
       </div>

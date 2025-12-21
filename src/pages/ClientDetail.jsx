@@ -1,25 +1,75 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 
 export default function ClientDetail() {
   const { id } = useParams()
-  const { clients, invoices, quotations, deleteClient } = useData()
-  const client = clients.find(c => c.id === parseInt(id))
-
+  const navigate = useNavigate()
+  const { getClient, deleteClient, loading } = useData()
+  const [client, setClient] = useState(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  if (!client) return <div className="flex items-center justify-center min-h-screen">Client not found</div>
+  useEffect(() => {
+    const loadClient = async () => {
+      try {
+        const clientData = await getClient(parseInt(id))
+        setClient(clientData)
+      } catch (err) {
+        console.error('Failed to load client:', err)
+      }
+    }
+    if (id) {
+      loadClient()
+    }
+  }, [id, getClient])
 
-  // Get client's invoices and quotations
-  const clientInvoices = invoices.filter(inv => inv.clientId === client.id)
-  const clientQuotations = quotations.filter(qt => qt.clientId === client.id)
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this client?')) {
+      try {
+        await deleteClient(parseInt(id))
+        navigate('/clients')
+      } catch (err) {
+        console.error('Failed to delete client:', err)
+      }
+    }
+  }
 
-  // Calculate totals
-  const totalInvoiced = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0)
-  const totalPaid = clientInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + inv.amount, 0)
-  const totalOutstanding = totalInvoiced - totalPaid
+  if (loading.client && !client) {
+    return (
+      <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+            <p className="text-slate-500 dark:text-slate-400">Loading client data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!client) {
+    return (
+      <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">person_off</span>
+            <p className="text-slate-500 dark:text-slate-400">Client not found</p>
+            <Link to="/clients" className="mt-4 text-primary hover:underline">Back to Clients</Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Use data from API response
+  const totalInvoiced = client.totalBilled || 0
+  const totalOutstanding = client.outstanding || 0
+  const totalPaid = totalInvoiced - totalOutstanding
+  const clientInvoices = client.recentInvoices || []
+  const clientQuotations = client.recentQuotations || []
 
   const getStatusStyles = (status) => {
     const styles = {
@@ -294,11 +344,11 @@ export default function ClientDetail() {
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Statistics</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-                      <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{clientInvoices.length}</p>
+                      <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{client.totalInvoices || 0}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Invoices</p>
                     </div>
                     <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl">
-                      <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{clientQuotations.length}</p>
+                      <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{client.totalQuotations || 0}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Quotations</p>
                     </div>
                   </div>
@@ -409,10 +459,7 @@ export default function ClientDetail() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    deleteClient(client.id)
-                    window.location.href = '/clients'
-                  }}
+                  onClick={handleDelete}
                   className="flex-1 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-colors"
                 >
                   Delete
@@ -425,4 +472,5 @@ export default function ClientDetail() {
     </div>
   )
 }
+
 
