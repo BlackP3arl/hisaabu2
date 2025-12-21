@@ -307,14 +307,14 @@ export default function QuotationForm() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-4 lg:p-8">
+        <div className="flex-1 p-4 lg:px-8 lg:py-8">
           {formError && (
-            <div className="max-w-6xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+            <div className="max-w-[1600px] mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
               <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
             </div>
           )}
           {id && loading.quotation && !quotation && !formError && (
-            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
+            <div className="max-w-[1600px] mx-auto flex items-center justify-center py-12">
               <div className="text-center">
                 <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
                 <p className="text-slate-500 dark:text-slate-400">Loading quotation data...</p>
@@ -322,10 +322,10 @@ export default function QuotationForm() {
             </div>
           )}
           {(!id || quotation) && (
-          <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="max-w-[1600px] mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
               {/* Left Column - Main Form */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className="lg:col-span-8 space-y-6">
                 {/* Document Info */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 hidden lg:block">Document Details</h3>
@@ -602,8 +602,8 @@ export default function QuotationForm() {
               </div>
 
               {/* Right Column - Summary */}
-              <div className="lg:col-span-1">
-                <div className="lg:sticky lg:top-28 space-y-6">
+              <div className="lg:col-span-4">
+                <div className="lg:sticky lg:top-28 space-y-6 lg:max-w-sm lg:mr-8">
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-5 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Summary</h3>
                     <div className="space-y-3">

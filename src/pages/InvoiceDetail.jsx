@@ -247,7 +247,7 @@ export default function InvoiceDetail() {
           </div>
           <div className="flex items-center gap-3">
             <Link
-              to={`/invoices/${id}/edit`}
+              to={`/invoices/${id}`}
               className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -571,7 +571,7 @@ export default function InvoiceDetail() {
                 {/* Desktop Action Buttons */}
                 <div className="hidden lg:block space-y-3">
                   <Link
-                    to={`/invoices/${id}/edit`}
+                    to={`/invoices/${id}`}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors"
                   >
                     <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -594,7 +594,7 @@ export default function InvoiceDetail() {
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/80 dark:bg-slate-800/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           <div className="flex gap-3 max-w-lg mx-auto">
             <Link
-              to={`/invoices/${id}/edit`}
+              to={`/invoices/${id}`}
               className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm"
             >
               <span className="material-symbols-outlined text-[20px]">edit</span>

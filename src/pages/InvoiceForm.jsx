@@ -101,16 +101,16 @@ export default function InvoiceForm() {
   const showExchangeRate = formData.currency && formData.currency !== baseCurrency
 
   const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+    const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * (parseFloat(item.price) || 0)), 0)
     const discount = formData.items.reduce((sum, item) => {
       const itemDiscount = item.discountPercent || item.discount || 0
-      return sum + (item.quantity * item.price * itemDiscount / 100)
+      return sum + (item.quantity * (parseFloat(item.price) || 0) * itemDiscount / 100)
     }, 0)
     const afterDiscount = subtotal - discount
     const tax = formData.items.reduce((sum, item) => {
       const itemDiscount = item.discountPercent || item.discount || 0
       const itemTax = item.taxPercent || item.tax || 0
-      const itemTotal = item.quantity * item.price * (1 - itemDiscount / 100)
+      const itemTotal = item.quantity * (parseFloat(item.price) || 0) * (1 - itemDiscount / 100)
       return sum + (itemTotal * itemTax / 100)
     }, 0)
     const total = afterDiscount + tax
@@ -308,14 +308,14 @@ export default function InvoiceForm() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-4 lg:p-8">
+        <div className="flex-1 p-4 lg:px-8 lg:py-8">
           {formError && (
-            <div className="max-w-6xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+            <div className="max-w-[1600px] mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
               <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
             </div>
           )}
           {id && loading.invoice && !invoice && (
-            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
+            <div className="max-w-[1600px] mx-auto flex items-center justify-center py-12">
               <div className="text-center">
                 <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
                 <p className="text-slate-500 dark:text-slate-400">Loading invoice data...</p>
@@ -323,7 +323,7 @@ export default function InvoiceForm() {
             </div>
           )}
           {(!id || invoice) && (
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-[1600px] mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Left Column - Main Form */}
               <div className="lg:col-span-2 space-y-6">
@@ -519,7 +519,7 @@ export default function InvoiceForm() {
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  {currencySymbol}{((item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100)) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
+                                  {currencySymbol}{((item.quantity * (parseFloat(item.price) || 0) * (1 - (item.discountPercent || item.discount || 0) / 100)) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button 
@@ -552,12 +552,12 @@ export default function InvoiceForm() {
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</p>
                                 </div>
                               </div>
-                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
+                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(item.quantity * (parseFloat(item.price) || 0) * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                 <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
-                                <span>x {currencySymbol}{item.price.toFixed(2)}</span>
+                                <span>x {currencySymbol}{(parseFloat(item.price) || 0).toFixed(2)}</span>
                               </div>
                               <div className="flex gap-2">
                                 <button 
@@ -754,7 +754,7 @@ export default function InvoiceForm() {
             ...formData,
             id: id ? parseInt(id) : null,
             number,
-            amount: formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
+            amount: formData.items.reduce((sum, item) => sum + (item.quantity * (parseFloat(item.price) || 0)), 0),
             currency: formData.currency,
             exchangeRate: formData.exchangeRate,
           }}
