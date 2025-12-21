@@ -3,7 +3,7 @@ import { useData } from '../context/DataContext'
 import { handleApiError } from '../utils/errorHandler'
 
 export default function ItemSelector({ onSelect, onClose }) {
-  const { items, categories, loading, fetchItems, fetchCategories, createItem, settings, fetchSettings } = useData()
+  const { items, categories, loading, fetchItems, fetchCategories, createItem, settings, fetchSettings, companySettings, fetchCompanySettings } = useData()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -27,7 +27,11 @@ export default function ItemSelector({ onSelect, onClose }) {
     if (!settings) {
       fetchSettings()
     }
-  }, [fetchItems, fetchCategories, fetchSettings, settings])
+    // Fetch company settings if not already loaded
+    if (!companySettings) {
+      fetchCompanySettings()
+    }
+  }, [fetchItems, fetchCategories, fetchSettings, settings, fetchCompanySettings, companySettings])
 
   // Debounce search
   useEffect(() => {
@@ -62,6 +66,24 @@ export default function ItemSelector({ onSelect, onClose }) {
     const defaultTaxRate = settings?.defaultTax?.rate || 0
     return defaultTaxRate
   }
+
+  // Get currency symbol from currency code
+  const getCurrencySymbol = (currencyCode) => {
+    const currencyMap = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥',
+      'MVR': 'Rf',
+      'INR': '₹',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'SGD': 'S$',
+    }
+    return currencyMap[currencyCode] || currencyCode || '$'
+  }
+
+  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
 
   const handleSelectItem = (item) => {
     const taxRate = getTaxRate(item.gstApplicable !== false) // Default to true if not set
@@ -192,7 +214,7 @@ export default function ItemSelector({ onSelect, onClose }) {
                         <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{item.description}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-bold text-slate-900 dark:text-white">${item.rate}</p>
+                        <p className="font-bold text-slate-900 dark:text-white">{currencySymbol}{item.rate}</p>
                         <p className="text-xs text-slate-400">/piece</p>
                       </div>
                       <span className="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">add_circle</span>
@@ -250,7 +272,7 @@ export default function ItemSelector({ onSelect, onClose }) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Rate *</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">{currencySymbol}</span>
                       <input
                         type="number"
                         value={newItem.rate}
@@ -292,7 +314,7 @@ export default function ItemSelector({ onSelect, onClose }) {
                         <p className="text-xs text-slate-500 dark:text-slate-400">{newItem.description || 'No description'}</p>
                       </div>
                       {newItem.rate && (
-                        <p className="font-bold text-primary">${parseFloat(newItem.rate).toLocaleString()}/piece</p>
+                        <p className="font-bold text-primary">{currencySymbol}{parseFloat(newItem.rate).toLocaleString()}/piece</p>
                       )}
                     </div>
                   </div>

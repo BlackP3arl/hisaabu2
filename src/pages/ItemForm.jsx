@@ -6,7 +6,7 @@ import Sidebar from '../components/Sidebar'
 export default function ItemForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getItem, createItem, updateItem, fetchCategories, categories, loading } = useData()
+  const { getItem, createItem, updateItem, fetchCategories, categories, companySettings, fetchCompanySettings, loading } = useData()
   const [item, setItem] = useState(null)
   const [formError, setFormError] = useState(null)
 
@@ -19,10 +19,14 @@ export default function ItemForm() {
     gstApplicable: true,
   })
 
-  // Load categories on mount
+  // Load categories and settings on mount
   useEffect(() => {
     fetchCategories()
-  }, [fetchCategories])
+    // Fetch settings if not already loaded
+    if (!companySettings) {
+      fetchCompanySettings()
+    }
+  }, [fetchCategories, fetchCompanySettings, companySettings])
 
   // Load item data if editing
   useEffect(() => {
@@ -72,6 +76,24 @@ export default function ItemForm() {
     const category = categories.find(c => c.id === parseInt(categoryId))
     return category?.color || '#6B7280'
   }
+
+  // Get currency symbol from currency code
+  const getCurrencySymbol = (currencyCode) => {
+    const currencyMap = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥',
+      'MVR': 'Rf',
+      'INR': '₹',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'SGD': 'S$',
+    }
+    return currencyMap[currencyCode] || currencyCode || '$'
+  }
+
+  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
@@ -163,7 +185,7 @@ export default function ItemForm() {
                   </div>
                   {formData.rate && (
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-primary">${parseFloat(formData.rate).toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-primary">{currencySymbol}{parseFloat(formData.rate).toLocaleString()}</p>
                       <p className="text-xs text-slate-400">/piece</p>
                     </div>
                   )}
@@ -210,7 +232,7 @@ export default function ItemForm() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Unit Price *</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">{currencySymbol}</span>
                       <input
                         type="number"
                         value={formData.rate}
