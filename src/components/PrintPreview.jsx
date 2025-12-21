@@ -27,11 +27,16 @@ export default function PrintPreview({
       return { subtotal: data.amount || 0, discount: 0, tax: 0, total: data.amount || 0 }
     }
     const subtotal = data.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-    const discount = data.items.reduce((sum, item) => sum + (item.quantity * item.price * (item.discount || 0) / 100), 0)
+    const discount = data.items.reduce((sum, item) => {
+      const discountPercent = item.discountPercent || item.discount || 0
+      return sum + (item.quantity * item.price * discountPercent / 100)
+    }, 0)
     const afterDiscount = subtotal - discount
     const tax = data.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.price * (1 - (item.discount || 0) / 100)
-      return sum + (itemTotal * (item.tax || 0) / 100)
+      const discountPercent = item.discountPercent || item.discount || 0
+      const taxPercent = item.taxPercent || item.tax || 0
+      const itemTotal = item.quantity * item.price * (1 - discountPercent / 100)
+      return sum + (itemTotal * taxPercent / 100)
     }, 0)
     const total = afterDiscount + tax
     return { subtotal, discount, tax, total }
@@ -377,7 +382,13 @@ export default function PrintPreview({
                 <tbody className="divide-y divide-slate-100">
                   {data.items && data.items.length > 0 ? (
                     data.items.map((item, index) => {
-                      const lineTotal = item.quantity * item.price * (1 - (item.discount || 0) / 100)
+                      const discountPercent = item.discountPercent || item.discount || 0
+                      const taxPercent = item.taxPercent || item.tax || 0
+                      const itemSubtotal = item.quantity * item.price
+                      const itemDiscountAmount = itemSubtotal * discountPercent / 100
+                      const itemAfterDiscount = itemSubtotal - itemDiscountAmount
+                      const itemTaxAmount = itemAfterDiscount * taxPercent / 100
+                      const lineTotal = itemAfterDiscount + itemTaxAmount
                       return (
                         <tr key={index} className="hover:bg-slate-50">
                           <td className="px-4 py-4">
@@ -388,7 +399,7 @@ export default function PrintPreview({
                           </td>
                           <td className="px-4 py-4 text-center text-sm text-slate-600">{item.quantity}</td>
                           <td className="px-4 py-4 text-right text-sm text-slate-600">${item.price.toFixed(2)}</td>
-                          <td className="px-4 py-4 text-right text-sm text-slate-600">{item.tax || 0}%</td>
+                          <td className="px-4 py-4 text-right text-sm text-slate-600">{taxPercent.toFixed(2)}%</td>
                           <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">${lineTotal.toFixed(2)}</td>
                         </tr>
                       )
