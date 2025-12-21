@@ -364,7 +364,7 @@ export default function QuotationForm() {
                               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Disc %</th>
                               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Tax %</th>
                               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Total</th>
-                              <th className="w-16"></th>
+                              <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-16">Action</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -419,12 +419,13 @@ export default function QuotationForm() {
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
                                   ${((parseFloat(item.quantity) || 1) * (parseFloat(item.price) || 0) * (1 - (parseFloat(item.discountPercent || item.discount || 0)) / 100) * (1 + (parseFloat(item.taxPercent || item.tax || 0)) / 100)).toFixed(2)}
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-4 py-3 text-center">
                                   <button 
                                     onClick={() => handleRemoveItem(index)}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    title="Remove item"
+                                    className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95"
                                   >
-                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                    <span className="material-symbols-outlined text-[20px]">delete</span>
                                   </button>
                                 </td>
                               </tr>
@@ -460,7 +461,8 @@ export default function QuotationForm() {
                               <div className="flex gap-2">
                                 <button 
                                   onClick={() => handleRemoveItem(index)}
-                                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                                  title="Remove item"
+                                  className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95"
                                 >
                                   <span className="material-symbols-outlined text-[20px]">delete</span>
                                 </button>
