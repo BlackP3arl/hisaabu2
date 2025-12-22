@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import PrintPreview from '../components/PrintPreview'
 import apiClient from '../api/client'
-import { handleApiError } from '../utils/errorHandler'
+import { handleApiError, getErrorMessage } from '../utils/errorHandler'
 import { getCurrencySymbol, formatCurrency } from '../utils/currency'
 
 export default function QuotationDetail() {
@@ -40,7 +40,8 @@ export default function QuotationDetail() {
           setError('Quotation not found')
         }
       } catch (err) {
-        setError(handleApiError(err))
+        const errorMessage = handleApiError(err)
+        setError(getErrorMessage(errorMessage))
       } finally {
         setLoadingDetail(false)
       }
@@ -54,7 +55,8 @@ export default function QuotationDetail() {
         const newInvoice = await convertQuotationToInvoice(parseInt(id))
         navigate(`/invoices/${newInvoice.id}/view`)
       } catch (err) {
-        setError(handleApiError(err))
+        const errorMessage = handleApiError(err)
+        setError(getErrorMessage(errorMessage))
       }
     }
   }
@@ -64,7 +66,8 @@ export default function QuotationDetail() {
       await deleteQuotation(parseInt(id))
       navigate('/quotations')
     } catch (err) {
-      setError(handleApiError(err))
+      const errorMessage = handleApiError(err)
+      setError(getErrorMessage(errorMessage))
     }
   }
 
@@ -81,7 +84,8 @@ export default function QuotationDetail() {
       link.click()
       link.remove()
     } catch (err) {
-      setError(handleApiError(err))
+      const errorMessage = handleApiError(err)
+      setError(getErrorMessage(errorMessage))
     }
   }
 
@@ -94,7 +98,8 @@ export default function QuotationDetail() {
         alert('Share link copied to clipboard!')
       }
     } catch (err) {
-      setError(handleApiError(err))
+      const errorMessage = handleApiError(err)
+      setError(getErrorMessage(errorMessage))
     }
   }
 
@@ -113,14 +118,21 @@ export default function QuotationDetail() {
   }
 
   if (error || !quotation) {
+    const errorMessage = typeof error === 'string' ? error : (error?.message || 'An error occurred')
+    const errorTitle = !quotation && !error 
+      ? 'Quotation not found' 
+      : error 
+        ? 'Error' 
+        : 'Quotation not found'
+    
     return (
       <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
         <Sidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <span className="material-symbols-outlined text-6xl text-red-500 mb-4">error</span>
-            <p className="text-slate-900 dark:text-white text-lg mb-2">Quotation not found</p>
-            <p className="text-slate-500 dark:text-slate-400">{error || 'The quotation you are looking for does not exist.'}</p>
+            <p className="text-slate-900 dark:text-white text-lg mb-2">{errorTitle}</p>
+            <p className="text-slate-500 dark:text-slate-400">{errorMessage}</p>
             <Link to="/quotations" className="mt-4 inline-block text-primary hover:underline">
               Back to Quotations
             </Link>

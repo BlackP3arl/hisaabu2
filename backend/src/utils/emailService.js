@@ -18,11 +18,17 @@ const createTransporter = () => {
   const emailFromName = process.env.EMAIL_FROM_NAME || 'Hisaabu';
 
   if (!smtpKey) {
-    console.warn('SMTP_KEY not configured. Email sending will be disabled.');
+    console.warn('⚠️ [EMAIL] SMTP_KEY not configured. Email sending will be disabled.');
+    console.warn('⚠️ [EMAIL] Please set SMTP_KEY in your .env file');
     return null;
   }
 
-  return nodemailer.createTransport({
+  console.log('📧 [EMAIL] Creating SMTP transporter...');
+  console.log('📧 [EMAIL] SMTP Server:', smtpServer);
+  console.log('📧 [EMAIL] SMTP Port:', smtpPort);
+  console.log('📧 [EMAIL] SMTP User:', smtpUser ? `${smtpUser.substring(0, 4)}...` : 'Not set');
+
+  const transporter = nodemailer.createTransport({
     host: smtpServer,
     port: smtpPort,
     secure: smtpPort === 465, // true for 465, false for other ports
@@ -31,6 +37,17 @@ const createTransporter = () => {
       pass: smtpKey,
     },
   });
+
+  // Verify transporter configuration (async, won't block)
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('❌ [EMAIL] SMTP configuration verification failed:', error.message);
+    } else {
+      console.log('✅ [EMAIL] SMTP configuration verified successfully');
+    }
+  });
+
+  return transporter;
 };
 
 /**
@@ -43,16 +60,27 @@ const createTransporter = () => {
  * @returns {Promise<Object>} - Send result
  */
 export const sendEmail = async ({ to, subject, html, text }) => {
+  console.log('📧 [EMAIL] Starting email send process...');
+  console.log('📧 [EMAIL] To:', to);
+  console.log('📧 [EMAIL] Subject:', subject);
+  
   const transporter = createTransporter();
   
   if (!transporter) {
-    throw new Error('Email service not configured. Please set SMTP_KEY in environment variables.');
+    const errorMsg = 'Email service not configured. Please set SMTP_KEY in environment variables.';
+    console.error('❌ [EMAIL]', errorMsg);
+    throw new Error(errorMsg);
   }
 
   const emailFrom = process.env.EMAIL_FROM || 'noreply@hisaabu.com';
   const emailFromName = process.env.EMAIL_FROM_NAME || 'Hisaabu';
 
+  console.log('📧 [EMAIL] From:', `"${emailFromName}" <${emailFrom}>`);
+  console.log('📧 [EMAIL] SMTP Server:', process.env.SMTP_SERVER || 'smtp-relay.sendinblue.com');
+  console.log('📧 [EMAIL] SMTP Port:', process.env.SMTP_PORT || '587');
+
   try {
+    console.log('📧 [EMAIL] Attempting to send email...');
     const info = await transporter.sendMail({
       from: `"${emailFromName}" <${emailFrom}>`,
       to,
@@ -61,11 +89,30 @@ export const sendEmail = async ({ to, subject, html, text }) => {
       text: text || html.replace(/<[^>]*>/g, ''), // Strip HTML for text version
     });
 
-    console.log('Email sent successfully:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    console.log('✅ [EMAIL] Email sent successfully!');
+    console.log('✅ [EMAIL] Message ID:', info.messageId);
+    console.log('✅ [EMAIL] Response:', JSON.stringify(info.response || 'No response', null, 2));
+    return { success: true, messageId: info.messageId, response: info.response };
   } catch (error) {
-    console.error('Error sending email:', error);
-    throw error;
+    console.error('❌ [EMAIL] Error sending email:');
+    console.error('❌ [EMAIL] Error code:', error.code);
+    console.error('❌ [EMAIL] Error message:', error.message);
+    console.error('❌ [EMAIL] Error response:', error.response);
+    console.error('❌ [EMAIL] Full error:', JSON.stringify(error, null, 2));
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Failed to send email';
+    if (error.code === 'EAUTH') {
+      errorMessage = 'SMTP authentication failed. Please check your SMTP credentials (SMTP_KEY, SMTP_USER).';
+    } else if (error.code === 'ECONNECTION') {
+      errorMessage = 'Could not connect to SMTP server. Please check SMTP_SERVER and SMTP_PORT settings.';
+    } else if (error.response) {
+      errorMessage = `SMTP server error: ${error.response}`;
+    } else {
+      errorMessage = error.message || 'Unknown error occurred while sending email';
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 

@@ -57,6 +57,7 @@ import shareLinkRoutes from './routes/shareLinks.js';
 import publicRoutes from './routes/public.js';
 import { generateQuotationPDFController, generateInvoicePDFController } from './controllers/pdfController.js';
 import { authenticate } from './middleware/auth.js';
+import { testEmail } from './controllers/emailController.js';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/clients', clientRoutes);
@@ -71,6 +72,9 @@ app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/taxes', taxRoutes);
 app.use('/api/v1/share-links', shareLinkRoutes);
 app.use('/api/v1/public', publicRoutes);
+
+// Test email route (for debugging - requires authentication)
+app.post('/api/v1/test-email', authenticate, testEmail);
 
 // PDF generation routes
 app.get('/api/v1/quotations/:id/pdf', authenticate, generateQuotationPDFController);

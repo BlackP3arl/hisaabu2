@@ -33,6 +33,7 @@ export const recordPayment = async (req, res) => {
       paymentMethod,
       referenceNumber,
       notes,
+      currency,
     } = req.body;
 
     // Validation

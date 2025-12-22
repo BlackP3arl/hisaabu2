@@ -708,7 +708,41 @@ export const convertToInvoice = async (req, res) => {
       );
     }
 
-    const { issueDate, dueDate } = req.body;
+    // Safely extract dates from request body (may be undefined)
+    const body = req.body || {};
+    const { issueDate: requestedIssueDate, dueDate: requestedDueDate } = body;
+
+    // Helper to format date to ISO string if needed
+    const formatDateString = (date) => {
+      if (!date) return null;
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+      }
+      // If it's already a string, ensure it's in YYYY-MM-DD format
+      if (typeof date === 'string') {
+        // Handle PostgreSQL date format or ISO format
+        return date.split('T')[0];
+      }
+      return date;
+    };
+
+    // Use quotation dates as defaults, allow override from request body
+    // If quotation dates are null, use today's date for issue date and 30 days later for due date
+    let issueDate = requestedIssueDate || formatDateString(quotation.issue_date);
+    let dueDate = requestedDueDate || formatDateString(quotation.expiry_date);
+
+    // If quotation dates are missing, use sensible defaults
+    if (!issueDate) {
+      // Use today's date as default issue date
+      issueDate = new Date().toISOString().split('T')[0];
+    }
+
+    if (!dueDate) {
+      // Use 30 days from issue date as default due date
+      const issueDateObj = new Date(issueDate);
+      issueDateObj.setDate(issueDateObj.getDate() + 30);
+      dueDate = issueDateObj.toISOString().split('T')[0];
+    }
 
     // Validate dates
     if (!issueDate) {
@@ -752,6 +786,39 @@ export const convertToInvoice = async (req, res) => {
       );
     }
 
+    // Get company settings for default currency and base currency
+    const settings = await getSettings(userId);
+    const defaultCurrency = settings?.currency || 'MVR';
+    const baseCurrency = settings?.base_currency || 'USD';
+    
+    // Use quotation currency or default to company currency
+    const documentCurrency = quotation.currency || defaultCurrency;
+    const exchangeRate = quotation.exchange_rate || null;
+
+    // Validate currency code if provided
+    if (documentCurrency && !validateCurrencyCode(documentCurrency)) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid currency code (must be ISO 4217 format: 3 uppercase letters)',
+        { currency: ['Invalid currency code'] },
+        422
+      );
+    }
+
+    // Validate exchange rate if currency differs from base currency
+    if (documentCurrency !== baseCurrency) {
+      if (!exchangeRate || exchangeRate <= 0) {
+        return errorResponse(
+          res,
+          'VALIDATION_ERROR',
+          'Exchange rate is required when currency differs from base currency',
+          { exchangeRate: ['Exchange rate must be > 0 when currency ≠ base currency'] },
+          422
+        );
+      }
+    }
+
     // Generate invoice number
     const prefix = await getInvoicePrefix(userId);
     const invoiceNumber = await generateInvoiceNumber(userId, prefix, query);
@@ -777,6 +844,8 @@ export const convertToInvoice = async (req, res) => {
         notes: quotation.notes,
         terms: quotation.terms,
         status: 'draft',
+        currency: documentCurrency,
+        exchangeRate: documentCurrency !== baseCurrency ? exchangeRate : null,
       },
       invoiceItems,
       invoiceNumber
@@ -903,11 +972,31 @@ export const sendQuotationEmail = async (req, res) => {
     });
 
     // Send email
-    await sendEmail({
-      to: quotation.client_email,
-      subject: `Quotation ${quotation.number} from ${settings.companyName || settings.name || 'Company'}`,
-      html: emailHtml,
-    });
+    console.log('📧 [QUOTATION EMAIL] Preparing to send email for quotation:', quotation.number);
+    console.log('📧 [QUOTATION EMAIL] Client email:', quotation.client_email);
+    
+    let emailResult;
+    try {
+      emailResult = await sendEmail({
+        to: quotation.client_email,
+        subject: `Quotation ${quotation.number} from ${settings.companyName || settings.name || 'Company'}`,
+        html: emailHtml,
+      });
+      console.log('✅ [QUOTATION EMAIL] Email sent successfully:', emailResult.messageId);
+    } catch (emailError) {
+      console.error('❌ [QUOTATION EMAIL] Failed to send email:', emailError.message);
+      // Return error response instead of throwing to provide better feedback
+      return errorResponse(
+        res,
+        'EMAIL_SEND_FAILED',
+        emailError.message || 'Failed to send quotation email',
+        {
+          email: [emailError.message],
+          messageId: null,
+        },
+        500
+      );
+    }
 
     // Update quotation status to 'sent' if not already
     if (quotation.status !== 'sent') {
@@ -920,6 +1009,8 @@ export const sendQuotationEmail = async (req, res) => {
       res,
       {
         message: 'Quotation email sent successfully',
+        emailSent: true,
+        messageId: emailResult.messageId,
         shareLink: {
           token: shareLink.token,
           url: shareUrl,
@@ -929,7 +1020,7 @@ export const sendQuotationEmail = async (req, res) => {
       200
     );
   } catch (error) {
-    console.error('Send quotation email error:', error);
+    console.error('❌ [QUOTATION EMAIL] Send quotation email error:', error);
     throw error;
   }
 };

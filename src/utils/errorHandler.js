@@ -19,10 +19,17 @@ export const handleApiError = (error) => {
       case 404:
         return data.error?.message || 'Resource not found'
       case 422:
-        // Validation errors - return details object
+        // Validation errors - return details object with formatted message
+        const validationMessage = data.error?.message || 'Validation failed'
+        const details = data.error?.details || {}
+        // Create a user-friendly message that includes field-specific errors
+        const fieldErrors = Object.keys(details).map(field => {
+          const errors = Array.isArray(details[field]) ? details[field] : [details[field]]
+          return `${field}: ${errors.join(', ')}`
+        }).join('; ')
         return {
-          message: data.error?.message || 'Validation failed',
-          details: data.error?.details || {}
+          message: fieldErrors ? `${validationMessage}: ${fieldErrors}` : validationMessage,
+          details: details
         }
       case 409:
         return data.error?.message || 'Resource already exists'
@@ -61,6 +68,19 @@ export const getValidationErrors = (error) => {
  */
 export const isNetworkError = (error) => {
   return !error.response && error.request
+}
+
+/**
+ * Get error message as a string (handles both string and object errors)
+ * @param {string|object|Error} error - Error from handleApiError or Error object
+ * @returns {string} - Error message as string
+ */
+export const getErrorMessage = (error) => {
+  if (!error) return 'An unexpected error occurred'
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error.message) return error.message
+  return 'An unexpected error occurred'
 }
 
 

@@ -120,11 +120,11 @@ const updateQuotationValidation = [
 
 const convertValidation = [
   body('issueDate')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isISO8601()
     .withMessage('Valid issue date is required'),
   body('dueDate')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isISO8601()
     .withMessage('Valid due date is required'),
 ];

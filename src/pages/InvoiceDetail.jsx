@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import PrintPreview from '../components/PrintPreview'
 import apiClient from '../api/client'
-import { handleApiError } from '../utils/errorHandler'
+import { handleApiError, getErrorMessage } from '../utils/errorHandler'
 import { formatCurrency } from '../utils/currency'
 
 export default function InvoiceDetail() {
@@ -49,7 +49,7 @@ export default function InvoiceDetail() {
           setError('Invoice not found')
         }
       } catch (err) {
-        setError(handleApiError(err))
+        setError(getErrorMessage(handleApiError(err)))
       } finally {
         setLoadingDetail(false)
       }
@@ -62,7 +62,7 @@ export default function InvoiceDetail() {
       await deleteInvoice(parseInt(id))
       navigate('/invoices')
     } catch (err) {
-      setError(handleApiError(err))
+      setError(getErrorMessage(handleApiError(err)))
     }
   }
 
@@ -79,7 +79,7 @@ export default function InvoiceDetail() {
       link.click()
       link.remove()
     } catch (err) {
-      setError(handleApiError(err))
+      setError(getErrorMessage(handleApiError(err)))
     }
   }
 
@@ -92,7 +92,7 @@ export default function InvoiceDetail() {
         alert('Share link copied to clipboard!')
       }
     } catch (err) {
-      setError(handleApiError(err))
+      setError(getErrorMessage(handleApiError(err)))
     }
   }
 
@@ -126,7 +126,7 @@ export default function InvoiceDetail() {
         notes: '',
       })
     } catch (err) {
-      setError(handleApiError(err))
+      setError(getErrorMessage(handleApiError(err)))
     } finally {
       setSubmittingPayment(false)
     }
@@ -142,7 +142,7 @@ export default function InvoiceDetail() {
           setInvoice(invoiceData)
         }
       } catch (err) {
-        setError(handleApiError(err))
+        setError(getErrorMessage(handleApiError(err)))
       }
     }
   }
@@ -226,7 +226,14 @@ export default function InvoiceDetail() {
 
   const totals = calculateTotals()
   const paidAmount = invoice.payments?.reduce((sum, p) => sum + parseFloat(p.amount), 0) || 0
-  const balanceDue = totals.total - paidAmount
+  // Use balance_due from database (source of truth) instead of recalculating
+  // This ensures frontend matches backend validation
+  // Handle both camelCase (balanceDue) and snake_case (balance_due) for compatibility
+  const balanceDue = invoice.balanceDue !== undefined 
+    ? parseFloat(invoice.balanceDue) 
+    : (invoice.balance_due !== undefined 
+      ? parseFloat(invoice.balance_due) 
+      : (totals.total - paidAmount))
   const company = companySettings || { name: 'Company Name', address: '', email: '' }
 
   return (
@@ -246,13 +253,15 @@ export default function InvoiceDetail() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              to={`/invoices/${id}`}
-              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[20px]">edit</span>
-              Edit
-            </Link>
+            {invoice.status !== 'paid' && (
+              <Link
+                to={`/invoices/${id}`}
+                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px]">edit</span>
+                Edit
+              </Link>
+            )}
             <button 
               onClick={handleDownloadPdf}
               className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -575,13 +584,15 @@ export default function InvoiceDetail() {
 
                 {/* Desktop Action Buttons */}
                 <div className="hidden lg:block space-y-3">
-                  <Link
-                    to={`/invoices/${id}`}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">edit</span>
-                    Edit Invoice
-                  </Link>
+                  {invoice.status !== 'paid' && (
+                    <Link
+                      to={`/invoices/${id}`}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">edit</span>
+                      Edit Invoice
+                    </Link>
+                  )}
                   <button 
                     onClick={handleDownloadPdf}
                     className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -598,13 +609,15 @@ export default function InvoiceDetail() {
         {/* Mobile Bottom Bar */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/80 dark:bg-slate-800/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           <div className="flex gap-3 max-w-lg mx-auto">
-            <Link
-              to={`/invoices/${id}`}
-              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[20px]">edit</span>
-              Edit
-            </Link>
+            {invoice.status !== 'paid' && (
+              <Link
+                to={`/invoices/${id}`}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[20px]">edit</span>
+                Edit
+              </Link>
+            )}
             <button 
               onClick={handleDownloadPdf}
               className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm"
