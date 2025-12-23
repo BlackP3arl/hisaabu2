@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import PrintPreview from '../components/PrintPreview'
+import ShareLinkModal from '../components/ShareLinkModal'
 import apiClient from '../api/client'
 import { handleApiError, getErrorMessage } from '../utils/errorHandler'
 import { formatCurrency } from '../utils/currency'
@@ -18,6 +19,7 @@ export default function InvoiceDetail() {
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showShareLinkModal, setShowShareLinkModal] = useState(false)
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().split('T')[0],
@@ -83,16 +85,12 @@ export default function InvoiceDetail() {
     }
   }
 
-  const handleGenerateShareLink = async () => {
+  const handleGenerateShareLink = async (documentType, documentId, options = {}) => {
     try {
-      const shareLink = await generateShareLink('invoice', parseInt(id))
-      if (shareLink) {
-        const shareUrl = `${window.location.origin}/share/invoice/${shareLink.token}`
-        navigator.clipboard.writeText(shareUrl)
-        alert('Share link copied to clipboard!')
-      }
+      const shareLink = await generateShareLink(documentType, documentId, options)
+      return shareLink
     } catch (err) {
-      setError(getErrorMessage(handleApiError(err)))
+      throw new Error(getErrorMessage(handleApiError(err)))
     }
   }
 
@@ -270,7 +268,7 @@ export default function InvoiceDetail() {
               Download PDF
             </button>
             <button
-              onClick={handleGenerateShareLink}
+              onClick={() => setShowShareLinkModal(true)}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold"
             >
               <span className="material-symbols-outlined text-[20px]">share</span>
@@ -566,7 +564,7 @@ export default function InvoiceDetail() {
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Download PDF</span>
                     </button>
                     <button 
-                      onClick={handleGenerateShareLink}
+                      onClick={() => setShowShareLinkModal(true)}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                     >
                       <span className="material-symbols-outlined text-slate-500">share</span>
@@ -626,7 +624,7 @@ export default function InvoiceDetail() {
               PDF
             </button>
             <button 
-              onClick={handleGenerateShareLink}
+              onClick={() => setShowShareLinkModal(true)}
               className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md"
             >
               <span className="material-symbols-outlined text-[20px]">share</span>
@@ -776,6 +774,16 @@ export default function InvoiceDetail() {
           </div>
         </div>
       )}
+
+      {/* Share Link Modal */}
+      <ShareLinkModal
+        isOpen={showShareLinkModal}
+        onClose={() => setShowShareLinkModal(false)}
+        onGenerate={handleGenerateShareLink}
+        documentType="invoice"
+        documentId={parseInt(id)}
+        loading={loading.shareLink}
+      />
     </div>
   )
 }

@@ -412,9 +412,15 @@ export const publicShare = async (req, res) => {
     // Transform company settings
     const company = companySettings ? toCamelCase(companySettings) : null;
 
+    // Transform share link info (without sensitive data)
+    const shareLinkInfo = toCamelCase(shareLink);
+    shareLinkInfo.hasPassword = !!shareLink.password_hash;
+    delete shareLinkInfo.passwordHash;
+
     return successResponse(
       res,
       {
+        shareLink: shareLinkInfo,
         document: transformed,
         company,
       },
@@ -423,6 +429,217 @@ export const publicShare = async (req, res) => {
     );
   } catch (error) {
     console.error('Public share error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Public verify password endpoint (no authentication)
+ * POST /api/v1/public/share/:token/verify
+ */
+export const publicVerifyPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Password is required',
+        { password: ['Password is required'] },
+        422
+      );
+    }
+
+    // Get share link
+    const shareLink = await getShareLinkByToken(token);
+
+    if (!shareLink) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Share link not found',
+        null,
+        404
+      );
+    }
+
+    // Check if link is active
+    if (!shareLink.is_active) {
+      return errorResponse(
+        res,
+        'GONE',
+        'Share link is inactive',
+        null,
+        410
+      );
+    }
+
+    // Check if expired
+    if (shareLink.expires_at) {
+      const expiresAt = new Date(shareLink.expires_at);
+      expiresAt.setHours(23, 59, 59, 999);
+      if (new Date() > expiresAt) {
+        return errorResponse(
+          res,
+          'GONE',
+          'Share link has expired',
+          null,
+          410
+        );
+      }
+    }
+
+    // Verify password
+    try {
+      await verifyShareLinkPassword(token, password);
+    } catch (error) {
+      if (error.message === 'INVALID_PASSWORD') {
+        return errorResponse(
+          res,
+          'UNAUTHORIZED',
+          'Invalid password',
+          null,
+          401
+        );
+      }
+      throw error;
+    }
+
+    // Get document
+    const documentData = await getDocumentByShareLink(token);
+
+    if (!documentData) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Document not found',
+        null,
+        404
+      );
+    }
+
+    // Increment view count
+    await incrementViewCount(token);
+
+    // Get company settings for branding
+    let userId = null;
+    if (documentData.type === 'invoice') {
+      const invoiceResult = await query('SELECT user_id FROM invoices WHERE id = $1', [shareLink.document_id]);
+      userId = invoiceResult.rows[0]?.user_id;
+    } else {
+      const quotationResult = await query('SELECT user_id FROM quotations WHERE id = $1', [shareLink.document_id]);
+      userId = quotationResult.rows[0]?.user_id;
+    }
+
+    const companySettings = userId ? await getOrCreateSettings(userId) : null;
+
+    // Transform document
+    const transformed = toCamelCase(documentData.document);
+    if (documentData.type === 'invoice') {
+      transformed.client = {
+        id: documentData.document.client_id,
+        name: documentData.document.client_name,
+        email: documentData.document.client_email,
+      };
+      transformed.items = toCamelCaseArray(documentData.document.items || []);
+      transformed.payments = toCamelCaseArray(documentData.document.payments || []);
+    } else {
+      transformed.client = {
+        id: documentData.document.client_id,
+        name: documentData.document.client_name,
+        email: documentData.document.client_email,
+      };
+      transformed.items = toCamelCaseArray(documentData.document.items || []);
+    }
+
+    // Transform company settings
+    const company = companySettings ? toCamelCase(companySettings) : null;
+
+    // Transform share link
+    const shareLinkTransformed = toCamelCase(shareLink);
+    shareLinkTransformed.hasPassword = !!shareLink.password_hash;
+    delete shareLinkTransformed.passwordHash;
+
+    return successResponse(
+      res,
+      {
+        shareLink: shareLinkTransformed,
+        document: transformed,
+        company,
+      },
+      'Password verified',
+      200
+    );
+  } catch (error) {
+    console.error('Public verify password error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Public acknowledge endpoint (no authentication)
+ * POST /api/v1/public/share/:token/acknowledge
+ */
+export const publicAcknowledge = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Get share link
+    const shareLink = await getShareLinkByToken(token);
+
+    if (!shareLink) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Share link not found',
+        null,
+        404
+      );
+    }
+
+    // Check if link is active
+    if (!shareLink.is_active) {
+      return errorResponse(
+        res,
+        'GONE',
+        'Share link is inactive',
+        null,
+        410
+      );
+    }
+
+    // Check if expired
+    if (shareLink.expires_at) {
+      const expiresAt = new Date(shareLink.expires_at);
+      expiresAt.setHours(23, 59, 59, 999);
+      if (new Date() > expiresAt) {
+        return errorResponse(
+          res,
+          'GONE',
+          'Share link has expired',
+          null,
+          410
+        );
+      }
+    }
+
+    // Increment view count and update last accessed
+    await incrementViewCount(token);
+    await query(
+      'UPDATE share_links SET last_accessed_at = NOW() WHERE token = $1',
+      [token]
+    );
+
+    return successResponse(
+      res,
+      null,
+      'Document acknowledged',
+      200
+    );
+  } catch (error) {
+    console.error('Public acknowledge error:', error);
     throw error;
   }
 };

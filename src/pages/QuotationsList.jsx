@@ -70,6 +70,7 @@ export default function QuotationsList() {
   const getStatusColor = (status) => {
     const colors = {
       accepted: 'bg-green-500',
+      rejected: 'bg-red-500',
       sent: 'bg-primary',
       draft: 'bg-gray-400',
       expired: 'bg-red-400',
@@ -80,6 +81,7 @@ export default function QuotationsList() {
   const getStatusBadge = (status) => {
     const badges = {
       accepted: 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-900/30 text-green-700 dark:text-green-400',
+      rejected: 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900/30 text-red-700 dark:text-red-400',
       sent: 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30 text-primary dark:text-blue-400',
       draft: 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400',
       expired: 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900/30 text-red-700 dark:text-red-400',

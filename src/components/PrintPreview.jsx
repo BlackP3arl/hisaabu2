@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext'
 import { handleApiError } from '../utils/errorHandler'
 import apiClient from '../api/client'
 import { getCurrencySymbol, formatCurrency } from '../utils/currency'
+import ShareLinkModal from './ShareLinkModal'
 
 export default function PrintPreview({ 
   type = 'invoice', // 'invoice' or 'quotation'
@@ -12,11 +13,7 @@ export default function PrintPreview({
 }) {
   const { companySettings, loading, generateShareLink } = useData()
   const printRef = useRef(null)
-  const [showShareLink, setShowShareLink] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
-  const [shareLink, setShareLink] = useState(null)
-  const [generatingLink, setGeneratingLink] = useState(false)
-  const [error, setError] = useState(null)
+  const [showShareLinkModal, setShowShareLinkModal] = useState(false)
 
   const isQuotation = type === 'quotation'
   const documentTitle = isQuotation ? 'QUOTATION' : 'INVOICE'
@@ -65,50 +62,12 @@ export default function PrintPreview({
   }
 
   // Generate secure share link via API
-  const handleGenerateShareLink = async () => {
-    if (shareLink) {
-      setShowShareLink(true)
-      return
-    }
-    setGeneratingLink(true)
-    setError(null)
+  const handleGenerateShareLink = async (documentType, documentId, options = {}) => {
     try {
-      const link = await generateShareLink(
-        type === 'quotation' ? 'quotation' : 'invoice',
-        data.id,
-        null // No password for now, can be added later
-      )
-      const baseUrl = window.location.origin
-      setShareLink(`${baseUrl}/share/${type}/${link.token}`)
-      setShowShareLink(true)
+      const shareLink = await generateShareLink(documentType, documentId, options)
+      return shareLink
     } catch (err) {
-      setError(handleApiError(err))
-    } finally {
-      setGeneratingLink(false)
-    }
-  }
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareLink)
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    } catch (err) {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea')
-      textArea.value = shareLink
-      textArea.style.position = 'fixed'
-      textArea.style.opacity = '0'
-      document.body.appendChild(textArea)
-      textArea.select()
-      try {
-        document.execCommand('copy')
-        setLinkCopied(true)
-        setTimeout(() => setLinkCopied(false), 2000)
-      } catch (err) {
-        console.error('Failed to copy link:', err)
-      }
-      document.body.removeChild(textArea)
+      throw new Error(handleApiError(err))
     }
   }
 
@@ -187,21 +146,11 @@ export default function PrintPreview({
           </div>
           <div className="flex items-center gap-2">
             <button 
-              onClick={handleGenerateShareLink}
-              disabled={generatingLink}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              onClick={() => setShowShareLinkModal(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
-              {generatingLink ? (
-                <>
-                  <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[18px]">share</span>
-                  Share Link
-                </>
-              )}
+              <span className="material-symbols-outlined text-[18px]">share</span>
+              Share Link
             </button>
             <button 
               onClick={handlePrint}
@@ -243,72 +192,6 @@ export default function PrintPreview({
             </button>
           </div>
         </div>
-
-        {/* Share Link Section */}
-        {showShareLink && (
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
-            {error && (
-              <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-800 dark:text-red-200">
-                {error}
-              </div>
-            )}
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-primary text-[20px]">link</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">Secure Share Link</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                  Share this link with your client. They'll need a password to view the document.
-                </p>
-                {shareLink ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2.5 flex items-center gap-2 min-w-0">
-                      <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0">link</span>
-                      <input
-                        type="text"
-                        value={shareLink}
-                        readOnly
-                        className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white min-w-0 outline-none"
-                      />
-                    </div>
-                    <button
-                      onClick={handleCopyLink}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors shrink-0 ${
-                        linkCopied
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-primary text-white hover:bg-blue-600'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {linkCopied ? 'check_circle' : 'content_copy'}
-                      </span>
-                      {linkCopied ? 'Copied!' : 'Copy'}
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Generating link...</p>
-                )}
-                <div className="mt-3 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px]">lock</span>
-                    <span>Password Protected</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px]">security</span>
-                    <span>Secure Access</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowShareLink(false)}
-                className="p-1 rounded-lg hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors shrink-0"
-              >
-                <span className="material-symbols-outlined text-slate-400 text-[20px]">close</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Preview Content */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900">
@@ -500,47 +383,9 @@ export default function PrintPreview({
 
         {/* Mobile Actions */}
         <div className="lg:hidden flex flex-col gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
-          {showShareLink && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 mb-2">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Secure Share Link</h3>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 flex items-center gap-2 min-w-0">
-                  <span className="material-symbols-outlined text-slate-400 text-[16px] shrink-0">link</span>
-                  <input
-                    type="text"
-                    value={shareLink}
-                    readOnly
-                    className="flex-1 bg-transparent text-xs text-slate-900 dark:text-white min-w-0 outline-none truncate"
-                  />
-                </div>
-                <button
-                  onClick={handleCopyLink}
-                  className={`px-3 py-2 rounded-lg font-medium transition-colors shrink-0 ${
-                    linkCopied
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-primary text-white'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    {linkCopied ? 'check_circle' : 'content_copy'}
-                  </span>
-                </button>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">lock</span>
-                  <span>Protected</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">security</span>
-                  <span>Secure</span>
-                </div>
-              </div>
-            </div>
-          )}
           <div className="flex gap-3">
             <button 
-              onClick={() => setShowShareLink(!showShareLink)}
+              onClick={() => setShowShareLinkModal(true)}
               className="flex-1 flex items-center justify-center gap-2 py-3 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 font-semibold"
             >
               <span className="material-symbols-outlined text-[20px]">share</span>
@@ -581,6 +426,16 @@ export default function PrintPreview({
           </div>
         </div>
       </div>
+
+      {/* Share Link Modal */}
+      <ShareLinkModal
+        isOpen={showShareLinkModal}
+        onClose={() => setShowShareLinkModal(false)}
+        onGenerate={handleGenerateShareLink}
+        documentType={type === 'quotation' ? 'quotation' : 'invoice'}
+        documentId={data.id}
+        loading={loading.shareLink}
+      />
     </div>
   )
 }

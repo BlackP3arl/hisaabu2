@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import PrintPreview from '../components/PrintPreview'
+import ShareLinkModal from '../components/ShareLinkModal'
 import apiClient from '../api/client'
 import { handleApiError, getErrorMessage } from '../utils/errorHandler'
 import { getCurrencySymbol, formatCurrency } from '../utils/currency'
@@ -17,6 +18,7 @@ export default function QuotationDetail() {
   const [error, setError] = useState(null)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showShareLinkModal, setShowShareLinkModal] = useState(false)
 
   useEffect(() => {
     const loadQuotation = async () => {
@@ -89,17 +91,13 @@ export default function QuotationDetail() {
     }
   }
 
-  const handleGenerateShareLink = async () => {
+  const handleGenerateShareLink = async (documentType, documentId, options = {}) => {
     try {
-      const shareLink = await generateShareLink('quotation', parseInt(id))
-      if (shareLink) {
-        const shareUrl = `${window.location.origin}/share/quotation/${shareLink.token}`
-        navigator.clipboard.writeText(shareUrl)
-        alert('Share link copied to clipboard!')
-      }
+      const shareLink = await generateShareLink(documentType, documentId, options)
+      return shareLink
     } catch (err) {
       const errorMessage = handleApiError(err)
-      setError(getErrorMessage(errorMessage))
+      throw new Error(getErrorMessage(errorMessage))
     }
   }
 
@@ -145,6 +143,7 @@ export default function QuotationDetail() {
   const getStatusStyles = (status) => {
     const styles = {
       accepted: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+      rejected: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
       expired: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
       draft: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600',
       sent: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
@@ -223,7 +222,7 @@ export default function QuotationDetail() {
               Download PDF
             </button>
             <button
-              onClick={handleGenerateShareLink}
+              onClick={() => setShowShareLinkModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               <span className="material-symbols-outlined text-[20px]">share</span>
@@ -456,7 +455,7 @@ export default function QuotationDetail() {
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Download PDF</span>
                     </button>
                     <button 
-                      onClick={handleGenerateShareLink}
+                      onClick={() => setShowShareLinkModal(true)}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                     >
                       <span className="material-symbols-outlined text-slate-500">share</span>
@@ -565,6 +564,16 @@ export default function QuotationDetail() {
           </div>
         </div>
       )}
+
+      {/* Share Link Modal */}
+      <ShareLinkModal
+        isOpen={showShareLinkModal}
+        onClose={() => setShowShareLinkModal(false)}
+        onGenerate={handleGenerateShareLink}
+        documentType="quotation"
+        documentId={parseInt(id)}
+        loading={loading.shareLink}
+      />
     </div>
   )
 }

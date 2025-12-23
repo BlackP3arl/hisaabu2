@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import apiClient from '../api/client'
 import { handleApiError } from '../utils/errorHandler'
+import { formatCurrency, getCurrencySymbol } from '../utils/currency'
 
 export default function SecureShare() {
   const { type, id } = useParams()
@@ -14,37 +15,6 @@ export default function SecureShare() {
   const [company, setCompany] = useState(null)
 
   useEffect(() => {
-    const loadDocument = async () => {
-      try {
-        setLoading(true)
-        setError('')
-        const { data } = await apiClient.get(`/public/share/${token}`)
-        if (data.success) {
-          const shareLink = data.data.shareLink
-          const doc = data.data.document
-          
-          setDocument(doc)
-          setCompany(data.data.company || {})
-          
-          // If password is required and not authenticated, show password form
-          if (shareLink.hasPassword && !authenticated) {
-            setLoading(false)
-            return
-          }
-          
-          // If no password required, authenticate automatically
-          if (!shareLink.hasPassword) {
-            setAuthenticated(true)
-          }
-        }
-      } catch (err) {
-        const errorMessage = handleApiError(err)
-        setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to load document')
-      } finally {
-        setLoading(false)
-      }
-    }
-    
     if (token) {
       loadDocument()
     }
@@ -80,12 +50,58 @@ export default function SecureShare() {
     }
   }
 
+  const loadDocument = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const { data } = await apiClient.get(`/public/share/${token}`)
+      if (data.success) {
+        const shareLink = data.data.shareLink || {}
+        const doc = data.data.document
+        
+        setDocument(doc)
+        setCompany(data.data.company || {})
+        
+        // If password is required and not authenticated, show password form
+        if (shareLink.hasPassword && !authenticated) {
+          setLoading(false)
+          return
+        }
+        
+        // If no password required, authenticate automatically
+        if (!shareLink.hasPassword) {
+          setAuthenticated(true)
+        }
+      }
+    } catch (err) {
+      // Handle 401 error as "password required"
+      if (err.response?.status === 401) {
+        setLoading(false)
+        // Don't set error here - let the password form show
+        return
+      }
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to load document')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleAcceptQuotation = async () => {
     try {
+      setError('')
       const { data } = await apiClient.post(`/public/quotations/${token}/accept`)
       if (data.success) {
-        setDocument({ ...document, status: 'accepted' })
-        alert('Quotation accepted successfully!')
+        // Reload document to get updated status
+        await loadDocument()
+        // Show success message
+        const successMsg = document.createElement('div')
+        successMsg.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-6 py-3 rounded-xl shadow-lg z-50 flex items-center gap-2'
+        successMsg.innerHTML = '<span class="material-symbols-outlined">check_circle</span><span>Quotation accepted successfully!</span>'
+        document.body.appendChild(successMsg)
+        setTimeout(() => {
+          document.body.removeChild(successMsg)
+        }, 3000)
       }
     } catch (err) {
       const errorMessage = handleApiError(err)
@@ -98,10 +114,19 @@ export default function SecureShare() {
       return
     }
     try {
+      setError('')
       const { data } = await apiClient.post(`/public/quotations/${token}/reject`)
       if (data.success) {
-        setDocument({ ...document, status: 'rejected' })
-        alert('Quotation rejected.')
+        // Reload document to get updated status
+        await loadDocument()
+        // Show success message
+        const successMsg = document.createElement('div')
+        successMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-xl shadow-lg z-50 flex items-center gap-2'
+        successMsg.innerHTML = '<span class="material-symbols-outlined">cancel</span><span>Quotation rejected.</span>'
+        document.body.appendChild(successMsg)
+        setTimeout(() => {
+          document.body.removeChild(successMsg)
+        }, 3000)
       }
     } catch (err) {
       const errorMessage = handleApiError(err)
@@ -245,6 +270,10 @@ export default function SecureShare() {
   const docType = document.documentType || type
   const client = document.client || {}
   const items = document.items || []
+  
+  // Get currency from document or fallback to company settings or MVR
+  const documentCurrency = document.currency || company?.currency || 'MVR'
+  const currencySymbol = getCurrencySymbol(documentCurrency)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 py-8 px-4">
@@ -337,9 +366,9 @@ export default function SecureShare() {
                             <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300">${(item.price || 0).toLocaleString()}</td>
+                        <td className="px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-300">{formatCurrency(item.price || 0, documentCurrency)}</td>
                         <td className="px-4 py-4 text-right font-semibold text-slate-900 dark:text-white">
-                          ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}
+                          {formatCurrency((item.quantity || 1) * (item.price || 0), documentCurrency)}
                         </td>
                       </tr>
                     ))
@@ -360,24 +389,29 @@ export default function SecureShare() {
                 {document.subtotal !== undefined && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600 dark:text-slate-300">Subtotal</span>
-                    <span className="text-slate-900 dark:text-white">${(document.subtotal || 0).toLocaleString()}</span>
+                    <span className="text-slate-900 dark:text-white">{formatCurrency(document.subtotal || 0, documentCurrency)}</span>
                   </div>
                 )}
                 {document.discountTotal > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600 dark:text-slate-300">Discount</span>
-                    <span className="text-slate-900 dark:text-white">-${(document.discountTotal || 0).toLocaleString()}</span>
+                    <span className="text-slate-900 dark:text-white">-{formatCurrency(document.discountTotal || 0, documentCurrency)}</span>
                   </div>
                 )}
                 {document.taxTotal > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600 dark:text-slate-300">Tax</span>
-                    <span className="text-slate-900 dark:text-white">${(document.taxTotal || 0).toLocaleString()}</span>
+                    <span className="text-slate-900 dark:text-white">{formatCurrency(document.taxTotal || 0, documentCurrency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-600">
                   <span className="font-bold text-slate-900 dark:text-white">Total Amount</span>
-                  <span className="text-2xl font-bold text-primary">${(document.totalAmount || document.amount || 0).toLocaleString()}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-bold text-primary">{formatCurrency(document.totalAmount || document.amount || 0, documentCurrency)}</span>
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                      {documentCurrency}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -413,19 +447,37 @@ export default function SecureShare() {
                 <>
                   <button 
                     onClick={handleAcceptQuotation}
-                    disabled={document.status === 'accepted' || document.status === 'rejected'}
+                    disabled={document.status === 'accepted' || document.status === 'rejected' || loading}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-white font-semibold shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                    Accept Quotation
+                    {loading ? (
+                      <>
+                        <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                        Accept Quotation
+                      </>
+                    )}
                   </button>
                   <button 
                     onClick={handleRejectQuotation}
-                    disabled={document.status === 'accepted' || document.status === 'rejected'}
+                    disabled={document.status === 'accepted' || document.status === 'rejected' || loading}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 py-3.5 text-white font-semibold shadow-lg shadow-red-500/25 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span className="material-symbols-outlined text-[20px]">cancel</span>
-                    Reject Quotation
+                    {loading ? (
+                      <>
+                        <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[20px]">cancel</span>
+                        Reject Quotation
+                      </>
+                    )}
                   </button>
                 </>
               ) : docType === 'quotation' ? (
