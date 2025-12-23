@@ -372,6 +372,17 @@ export const update = async (req, res) => {
       );
     }
 
+    // Prevent editing paid invoices
+    if (existingInvoice.status === 'paid') {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Cannot edit a paid invoice',
+        { status: ['Paid invoices cannot be modified'] },
+        422
+      );
+    }
+
     const {
       clientId,
       issueDate,

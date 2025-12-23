@@ -15,10 +15,14 @@ export default function Dashboard() {
     totalOutstanding: 0,
     totalQuotations: 0,
     totalInvoices: 0,
+    totalPaid: 0,
     paidInvoices: 0,
     unpaidInvoices: 0,
     overdueInvoices: 0,
+    pendingApprovalQuotations: 0,
+    paidTodayInvoices: 0,
     totalOutstandingByCurrency: [],
+    totalPaidByCurrency: [],
     paidInvoicesByCurrency: [],
     overdueInvoicesByCurrency: [],
     recentActivity: []
@@ -116,9 +120,22 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="mt-4 lg:mt-6">
-              <p className="text-sm text-slate-500 dark:text-slate-400">12 pending approval</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {loading.dashboard ? (
+                  <span className="inline-block w-20 h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
+                ) : (
+                  `${stats.pendingApprovalQuotations || 0} ${stats.pendingApprovalQuotations === 1 ? 'quotation' : 'quotations'} pending approval`
+                )}
+              </p>
               <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
-                <div className="bg-primary h-full rounded-full" style={{ width: '65%' }}></div>
+                <div 
+                  className="bg-primary h-full rounded-full transition-all" 
+                  style={{ 
+                    width: stats.totalQuotations > 0 
+                      ? `${Math.min((stats.pendingApprovalQuotations / stats.totalQuotations) * 100, 100)}%` 
+                      : '0%' 
+                  }}
+                ></div>
               </div>
             </div>
           </div>
@@ -141,9 +158,22 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="mt-4 lg:mt-6">
-              <p className="text-sm text-slate-500 dark:text-slate-400">5 paid today</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {loading.dashboard ? (
+                  <span className="inline-block w-20 h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
+                ) : (
+                  `${stats.paidTodayInvoices || 0} ${stats.paidTodayInvoices === 1 ? 'invoice' : 'invoices'} paid today`
+                )}
+              </p>
               <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
-                <div className="bg-purple-600 h-full rounded-full" style={{ width: '80%' }}></div>
+                <div 
+                  className="bg-purple-600 h-full rounded-full transition-all" 
+                  style={{ 
+                    width: stats.totalInvoices > 0 
+                      ? `${Math.min((stats.paidTodayInvoices / stats.totalInvoices) * 100, 100)}%` 
+                      : '0%' 
+                  }}
+                ></div>
               </div>
             </div>
           </div>
@@ -155,13 +185,27 @@ export default function Dashboard() {
                 <span className="material-symbols-outlined text-[20px] block">check_circle</span>
               </span>
               <div className="flex-1">
-                <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Paid</p>
-                <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.paidInvoices || 0}</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Total Paid</p>
+                {stats.totalPaidByCurrency && stats.totalPaidByCurrency.length > 0 ? (
+                  <div className="space-y-1">
+                    {stats.totalPaidByCurrency.map((item, idx) => (
+                      <div key={idx}>
+                        <p className="text-slate-900 dark:text-white text-xl font-bold">
+                          {formatCurrency(item.amount, item.currency)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-900 dark:text-white text-xl font-bold">
+                    {formatCurrency(stats.totalPaid || 0, 'USD')}
+                  </p>
+                )}
                 {stats.paidInvoicesByCurrency && stats.paidInvoicesByCurrency.length > 0 && (
                   <div className="mt-1 space-y-0.5">
                     {stats.paidInvoicesByCurrency.map((item, idx) => (
                       <p key={idx} className="text-slate-500 dark:text-slate-400 text-[10px]">
-                        {item.currency}: {item.count}
+                        {item.currency}: {item.count} invoices
                       </p>
                     ))}
                   </div>
@@ -195,8 +239,20 @@ export default function Dashboard() {
             <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 p-1.5 rounded-full mb-2">
               <span className="material-symbols-outlined text-[20px] block">check_circle</span>
             </span>
-            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Paid</p>
-            <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.paidInvoices || 0}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Total Paid</p>
+            {stats.totalPaidByCurrency && stats.totalPaidByCurrency.length > 0 ? (
+              <div className="text-center">
+                {stats.totalPaidByCurrency.map((item, idx) => (
+                  <p key={idx} className="text-slate-900 dark:text-white text-lg font-bold">
+                    {formatCurrency(item.amount, item.currency)}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-900 dark:text-white text-xl font-bold">
+                {formatCurrency(stats.totalPaid || 0, 'USD')}
+              </p>
+            )}
           </div>
           <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
             <span className="text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded-full mb-2">

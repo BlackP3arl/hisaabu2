@@ -26,13 +26,10 @@ export default function SecureShare() {
     try {
       const { data } = await apiClient.post(`/public/share/${token}/verify`, { password })
       if (data.success) {
+        // The verify endpoint already returns the document data
         setAuthenticated(true)
-        // Reload document after authentication
-        const { data: docData } = await apiClient.get(`/public/share/${token}`)
-        if (docData.success) {
-          setDocument(docData.data.document)
-          setCompany(docData.data.company || {})
-        }
+        setDocument(data.data.document)
+        setCompany(data.data.company || {})
       }
     } catch (err) {
       const errorMessage = handleApiError(err)
@@ -74,10 +71,12 @@ export default function SecureShare() {
         }
       }
     } catch (err) {
-      // Handle 401 error as "password required"
+      // Handle 401 error as "password required" - this means the link has a password
       if (err.response?.status === 401) {
         setLoading(false)
-        // Don't set error here - let the password form show
+        setError('') // Clear any previous errors
+        // Keep authenticated as false to show password form
+        // Don't return early - let the component render the password form
         return
       }
       const errorMessage = handleApiError(err)

@@ -14,11 +14,15 @@ export const getDashboardStats = async (userId) => {
     invoicesCount,
     outstandingResult,
     outstandingByCurrencyResult,
-    paidInvoicesCount,
+    totalPaidResult,
+    totalPaidByCurrencyResult,
+    paidInvoicesCountResult,
     paidInvoicesByCurrencyResult,
     unpaidInvoicesCount,
     overdueInvoicesCount,
     overdueInvoicesByCurrencyResult,
+    pendingApprovalQuotations,
+    paidTodayInvoices,
     recentActivity,
   ] = await Promise.all([
     // Total quotations
@@ -31,26 +35,48 @@ export const getDashboardStats = async (userId) => {
       'SELECT COUNT(*) as count FROM invoices WHERE user_id = $1',
       [userId]
     ),
-    // Total outstanding (sum of all currencies)
+    // Total outstanding (sum of balance_due for unpaid invoices only)
     query(
-      'SELECT COALESCE(SUM(balance_due), 0) as total FROM invoices WHERE user_id = $1',
+      `SELECT COALESCE(SUM(balance_due), 0) as total 
+       FROM invoices 
+       WHERE user_id = $1 
+         AND balance_due > 0`,
       [userId]
     ),
-    // Total outstanding by currency
+    // Total outstanding by currency (only unpaid invoices)
     query(
       `SELECT currency, COALESCE(SUM(balance_due), 0) as total 
        FROM invoices 
        WHERE user_id = $1 
+         AND balance_due > 0
        GROUP BY currency
        ORDER BY currency`,
       [userId]
     ),
-    // Paid invoices (total count)
+    // Total amount paid (sum of amount_paid, not count)
+    query(
+      `SELECT COALESCE(SUM(amount_paid), 0) as total 
+       FROM invoices 
+       WHERE user_id = $1 
+         AND amount_paid > 0`,
+      [userId]
+    ),
+    // Total amount paid by currency
+    query(
+      `SELECT currency, COALESCE(SUM(amount_paid), 0) as total 
+       FROM invoices 
+       WHERE user_id = $1 
+         AND amount_paid > 0
+       GROUP BY currency
+       ORDER BY currency`,
+      [userId]
+    ),
+    // Paid invoices count (for reference)
     query(
       "SELECT COUNT(*) as count FROM invoices WHERE user_id = $1 AND status = 'paid'",
       [userId]
     ),
-    // Paid invoices by currency
+    // Paid invoices by currency (count)
     query(
       `SELECT currency, COUNT(*) as count 
        FROM invoices 
@@ -64,76 +90,93 @@ export const getDashboardStats = async (userId) => {
       "SELECT COUNT(*) as count FROM invoices WHERE user_id = $1 AND status IN ('sent', 'draft')",
       [userId]
     ),
-    // Overdue invoices (total count)
+    // Overdue invoices (total count) - invoices not fully paid and past due date
     query(
       `SELECT COUNT(*) as count 
        FROM invoices 
        WHERE user_id = $1 
-         AND status = 'overdue' 
-         AND due_date < CURRENT_DATE 
-         AND balance_due > 0`,
+         AND balance_due > 0
+         AND due_date < CURRENT_DATE`,
       [userId]
     ),
-    // Overdue invoices by currency
+    // Overdue invoices by currency - invoices not fully paid and past due date
     query(
       `SELECT currency, COUNT(*) as count 
        FROM invoices 
        WHERE user_id = $1 
-         AND status = 'overdue' 
-         AND due_date < CURRENT_DATE 
          AND balance_due > 0
+         AND due_date < CURRENT_DATE
        GROUP BY currency
        ORDER BY currency`,
       [userId]
     ),
+    // Pending approval quotations (sent but not accepted/rejected)
+    query(
+      `SELECT COUNT(*) as count 
+       FROM quotations 
+       WHERE user_id = $1 
+         AND status = 'sent'`,
+      [userId]
+    ),
+    // Invoices paid today
+    query(
+      `SELECT COUNT(*) as count 
+       FROM invoices 
+       WHERE user_id = $1 
+         AND status = 'paid'
+         AND DATE(paid_at) = CURRENT_DATE`,
+      [userId]
+    ),
     // Recent activity (last 20 items) - include currency
     query(
-      `(
-        SELECT 
-          'payment' as type,
-          'Invoice #' || i.number || ' Paid' as title,
-          c.name as client,
-          p.amount,
-          p.currency,
-          p.created_at as timestamp
-        FROM payments p
-        INNER JOIN invoices i ON p.invoice_id = i.id
-        INNER JOIN clients c ON i.client_id = c.id
-        WHERE i.user_id = $1
-        ORDER BY p.created_at DESC
-        LIMIT 10
-      )
-      UNION ALL
-      (
-        SELECT 
-          'invoice' as type,
-          'Invoice #' || number || ' Created' as title,
-          c.name as client,
-          total_amount as amount,
-          currency,
-          created_at as timestamp
-        FROM invoices i
-        INNER JOIN clients c ON i.client_id = c.id
-        WHERE i.user_id = $1
-        ORDER BY created_at DESC
-        LIMIT 5
-      )
-      UNION ALL
-      (
-        SELECT 
-          'quotation' as type,
-          'Quotation #' || number || ' Created' as title,
-          c.name as client,
-          total_amount as amount,
-          currency,
-          created_at as timestamp
-        FROM quotations q
-        INNER JOIN clients c ON q.client_id = c.id
-        WHERE q.user_id = $1
-        ORDER BY created_at DESC
-        LIMIT 5
-      )
-      ORDER BY timestamp DESC
+      `SELECT * FROM (
+        (
+          SELECT 
+            'payment' as type,
+            'Invoice #' || i.number || ' Paid' as title,
+            c.name as client,
+            p.amount,
+            p.currency,
+            p.created_at as timestamp
+          FROM payments p
+          INNER JOIN invoices i ON p.invoice_id = i.id
+          INNER JOIN clients c ON i.client_id = c.id
+          WHERE i.user_id = $1
+          ORDER BY p.created_at DESC
+          LIMIT 10
+        )
+        UNION ALL
+        (
+          SELECT 
+            'invoice' as type,
+            'Invoice #' || i.number || ' Created' as title,
+            c.name as client,
+            i.total_amount as amount,
+            i.currency,
+            i.created_at as timestamp
+          FROM invoices i
+          INNER JOIN clients c ON i.client_id = c.id
+          WHERE i.user_id = $1
+          ORDER BY i.created_at DESC
+          LIMIT 5
+        )
+        UNION ALL
+        (
+          SELECT 
+            'quotation' as type,
+            'Quotation #' || q.number || ' Created' as title,
+            c.name as client,
+            q.total_amount as amount,
+            q.currency,
+            q.created_at as timestamp
+          FROM quotations q
+          INNER JOIN clients c ON q.client_id = c.id
+          WHERE q.user_id = $1
+          ORDER BY q.created_at DESC
+          LIMIT 5
+        )
+      ) AS recent_activity
+      ORDER BY recent_activity.timestamp DESC
       LIMIT 20`,
       [userId]
     ),
@@ -142,9 +185,12 @@ export const getDashboardStats = async (userId) => {
   const totalQuotations = parseInt(quotationsCount.rows[0].count);
   const totalInvoices = parseInt(invoicesCount.rows[0].count);
   const totalOutstanding = parseFloat(outstandingResult.rows[0].total);
-  const paidInvoices = parseInt(paidInvoicesCount.rows[0].count);
+  const totalPaid = parseFloat(totalPaidResult.rows[0].total); // Total amount paid
+  const paidInvoicesCountValue = parseInt(paidInvoicesCountResult.rows[0].count || 0); // Count of paid invoices
   const unpaidInvoices = parseInt(unpaidInvoicesCount.rows[0].count);
   const overdueInvoices = parseInt(overdueInvoicesCount.rows[0].count);
+  const pendingApprovalQuotationsCount = parseInt(pendingApprovalQuotations.rows[0].count || 0);
+  const paidTodayInvoicesCount = parseInt(paidTodayInvoices.rows[0].count || 0);
 
   // Transform outstanding by currency
   const totalOutstandingByCurrency = outstandingByCurrencyResult.rows.map(row => ({
@@ -152,7 +198,13 @@ export const getDashboardStats = async (userId) => {
     amount: parseFloat(row.total || 0),
   }));
 
-  // Transform paid invoices by currency
+  // Transform paid amount by currency
+  const totalPaidByCurrency = totalPaidByCurrencyResult.rows.map(row => ({
+    currency: row.currency,
+    amount: parseFloat(row.total || 0),
+  }));
+
+  // Transform paid invoices count by currency (for display)
   const paidInvoicesByCurrency = paidInvoicesByCurrencyResult.rows.map(row => ({
     currency: row.currency,
     count: parseInt(row.count || 0),
@@ -216,11 +268,15 @@ export const getDashboardStats = async (userId) => {
     totalInvoices,
     totalOutstanding,
     totalOutstandingByCurrency,
-    paidInvoices,
-    paidInvoicesByCurrency,
+    totalPaid, // Total amount paid (sum)
+    totalPaidByCurrency, // Total amount paid by currency
+    paidInvoices: paidInvoicesCountValue, // Count of paid invoices
+    paidInvoicesByCurrency, // Count of paid invoices by currency
     unpaidInvoices,
     overdueInvoices,
     overdueInvoicesByCurrency,
+    pendingApprovalQuotations: pendingApprovalQuotationsCount, // Quotations pending approval
+    paidTodayInvoices: paidTodayInvoicesCount, // Invoices paid today
     recentActivity: recentActivityList,
   };
 };

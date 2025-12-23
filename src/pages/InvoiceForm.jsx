@@ -57,6 +57,12 @@ export default function InvoiceForm() {
         try {
           const invoiceData = await getInvoice(parseInt(id))
           if (invoiceData) {
+            // Prevent editing paid invoices
+            if (invoiceData.status === 'paid') {
+              setFormError('Cannot edit a paid invoice. Paid invoices are read-only.')
+              navigate('/invoices')
+              return
+            }
             setInvoice(invoiceData)
             setFormData({
               clientId: invoiceData.clientId || '',
@@ -182,6 +188,14 @@ export default function InvoiceForm() {
 
   const handleSave = async (sendInvoice = false) => {
     setFormError(null)
+    
+    // Prevent editing paid invoices
+    if (invoice?.status === 'paid') {
+      setFormError('Cannot edit a paid invoice. Paid invoices are read-only.')
+      navigate('/invoices')
+      return
+    }
+    
     if (!formData.clientId) {
       setFormError('Please select a client')
       return
@@ -247,6 +261,8 @@ export default function InvoiceForm() {
     }
   }
 
+  const isPaid = invoice?.status === 'paid'
+
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
       <Sidebar />
@@ -263,6 +279,12 @@ export default function InvoiceForm() {
               <p className="text-sm text-slate-500 dark:text-slate-400">{number}</p>
             </div>
           </div>
+          {isPaid && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">lock</span>
+              <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Paid invoices cannot be edited</span>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setShowPrintPreview(true)}
@@ -280,7 +302,7 @@ export default function InvoiceForm() {
             </button>
             <button 
               onClick={() => handleSave(true)} 
-              disabled={submitting || loading.invoice}
+              disabled={submitting || loading.invoice || isPaid}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
@@ -669,9 +691,17 @@ export default function InvoiceForm() {
 
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
+                    {isPaid && (
+                      <div className="w-full px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">lock</span>
+                          <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Paid invoices cannot be edited</span>
+                        </div>
+                      </div>
+                    )}
                     <button 
                       onClick={() => handleSave(true)} 
-                      disabled={submitting || loading.invoice}
+                      disabled={submitting || loading.invoice || isPaid}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
@@ -691,7 +721,7 @@ export default function InvoiceForm() {
                         setFormData({ ...formData, status: 'draft' })
                         handleSave()
                       }}
-                      disabled={submitting || loading.invoice}
+                      disabled={submitting || loading.invoice || isPaid}
                       className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
                     >
                       <span className="material-symbols-outlined text-[20px]">save</span>
@@ -717,7 +747,7 @@ export default function InvoiceForm() {
             </button>
             <button 
               onClick={() => handleSave(true)} 
-              disabled={submitting || loading.invoice}
+              disabled={submitting || loading.invoice || isPaid}
               className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (

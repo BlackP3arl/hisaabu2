@@ -23,9 +23,17 @@ apiClient.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config
+    const isPublicRoute = originalRequest.url?.includes('/public/')
+    const isSharePage = window.location.pathname?.startsWith('/share/')
 
     // If error is 401 and we haven't already tried to refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Don't try to refresh token for public routes or share pages
+      // These routes handle 401 differently (e.g., password prompts)
+      if (isPublicRoute || isSharePage) {
+        return Promise.reject(error)
+      }
+
       originalRequest._retry = true
 
       const refreshToken = localStorage.getItem('refreshToken')
@@ -50,7 +58,8 @@ apiClient.interceptors.response.use(
           localStorage.removeItem('accessToken')
           localStorage.removeItem('refreshToken')
           localStorage.removeItem('user')
-          if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
+          // Don't redirect if on public/share pages
+          if (!isSharePage && window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
             window.location.href = '/login'
           }
           return Promise.reject(refreshError)
@@ -60,7 +69,8 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('accessToken')
         localStorage.removeItem('refreshToken')
         localStorage.removeItem('user')
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
+        // Don't redirect if on public/share pages
+        if (!isSharePage && window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
           window.location.href = '/login'
         }
       }

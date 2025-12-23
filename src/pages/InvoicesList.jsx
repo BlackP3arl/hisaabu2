@@ -224,13 +224,22 @@ export default function InvoicesList() {
                         >
                           <span className="material-symbols-outlined text-[20px]">visibility</span>
                         </Link>
-                        <Link
-                          to={`/invoices/${invoice.id}`}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">edit</span>
-                        </Link>
+                        {invoice.status === 'paid' ? (
+                          <span
+                            className="p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed rounded-lg"
+                            title="Cannot edit paid invoices"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">edit</span>
+                          </span>
+                        ) : (
+                          <Link
+                            to={`/invoices/${invoice.id}`}
+                            className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">edit</span>
+                          </Link>
+                        )}
                         <button
                           className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                           title="Share"
