@@ -35,6 +35,13 @@ FRONTEND_URL=http://localhost:5173
 UPLOAD_MAX_SIZE=5242880
 UPLOAD_ALLOWED_TYPES=image/jpeg,image/png,image/gif
 UPLOAD_DIR=./uploads
+
+# Email Configuration (Resend)
+# Get your API key from https://resend.com/api-keys
+RESEND_API_KEY=re_your_api_key_here
+# Sender email must be from a verified domain in Resend
+# For testing, you can use: onboarding@resend.dev
+RESEND_FROM_EMAIL=onboarding@resend.dev
 ```
 
 ## Required Values to Update
@@ -96,6 +103,8 @@ FRONTEND_URL=http://localhost:3000  # If using different port
    - `DB_PASSWORD` or `DATABASE_URL` - Your PostgreSQL password
    - `JWT_SECRET` - Generate a random secret (32+ characters)
    - `REFRESH_TOKEN_SECRET` - Generate another random secret (32+ characters)
+   - `RESEND_API_KEY` - Your Resend API key (get from https://resend.com/api-keys)
+   - `RESEND_FROM_EMAIL` - Sender email address (must be from verified domain)
 
 ## Verify Your Setup
 
@@ -141,6 +150,10 @@ REFRESH_TOKEN_SECRET=dev-refresh-secret-123456789012345678901234567890
 REFRESH_TOKEN_EXPIRES_IN=7d
 
 FRONTEND_URL=http://localhost:5173
+
+# Resend Email Configuration
+RESEND_API_KEY=re_your_api_key_here
+RESEND_FROM_EMAIL=onboarding@resend.dev
 ```
 
 ## Troubleshooting
@@ -159,6 +172,13 @@ FRONTEND_URL=http://localhost:5173
 ### CORS Errors
 - Verify `FRONTEND_URL` matches your frontend's actual URL
 - Check frontend is running on the specified port
+
+### Email Sending Errors (Resend)
+- Ensure `RESEND_API_KEY` is set correctly
+- Verify `RESEND_FROM_EMAIL` is from a domain verified in Resend dashboard
+- For testing, use `onboarding@resend.dev` as the sender email
+- Check Resend dashboard for API key status and rate limits
+- If emails fail, check Resend logs in their dashboard for detailed error messages
 
 
 

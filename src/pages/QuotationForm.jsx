@@ -9,10 +9,12 @@ import PrintPreview from '../components/PrintPreview'
 export default function QuotationForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getQuotation, createQuotation, updateQuotation, fetchCategories, categories, fetchClients, clients, loading } = useData()
+  const { getQuotation, createQuotation, updateQuotation, sendQuotationEmail, fetchCategories, categories, fetchClients, clients, loading } = useData()
   const [quotation, setQuotation] = useState(null)
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [successMessage, setSuccessMessage] = useState(null)
 
   const [showItemSelector, setShowItemSelector] = useState(false)
   const [showClientSelector, setShowClientSelector] = useState(false)
@@ -155,14 +157,22 @@ export default function QuotationForm() {
     return colors[index]
   }
 
-  const handleSave = async () => {
+  const handleSave = async (shouldSendEmail = false) => {
     setFormError(null)
+    setSuccessMessage(null)
+    
     if (!formData.clientId) {
       setFormError('Please select a client')
       return
     }
     if (formData.items.length === 0) {
       setFormError('Please add at least one item')
+      return
+    }
+
+    // Check if client has email when sending
+    if (shouldSendEmail && client && !client.email) {
+      setFormError('Client must have an email address to send quotation')
       return
     }
 
@@ -173,6 +183,8 @@ export default function QuotationForm() {
       expiryDate: formData.expiryDate,
       items: formData.items.map(item => ({
         itemId: item.itemId,
+        name: item.name,
+        description: item.description || '',
         quantity: item.quantity,
         price: item.price,
         discountPercent: item.discountPercent || 0,
@@ -180,16 +192,39 @@ export default function QuotationForm() {
       })),
       notes: formData.notes,
       terms: formData.terms,
-      status: formData.status,
+      status: shouldSendEmail ? 'sent' : formData.status,
     }
 
     try {
+      let savedQuotation
       if (id) {
-        await updateQuotation(parseInt(id), data)
+        savedQuotation = await updateQuotation(parseInt(id), data)
       } else {
-        await createQuotation(data)
+        savedQuotation = await createQuotation(data)
       }
-      navigate('/quotations')
+
+      // If we should send email, do it now
+      if (shouldSendEmail && savedQuotation) {
+        setSendingEmail(true)
+        try {
+          await sendQuotationEmail(savedQuotation.id)
+          setSuccessMessage(`Quotation ${savedQuotation.number || savedQuotation.quotationNumber || 'has been'} sent successfully to ${client?.email || 'the client'}`)
+          // Navigate after a short delay to show success message
+          setTimeout(() => {
+            navigate('/quotations')
+          }, 2000)
+        } catch (emailErr) {
+          console.error('Email send error:', emailErr)
+          const errorMsg = emailErr.response?.data?.error?.message || emailErr.message || 'Failed to send email. Quotation was saved successfully.'
+          setFormError(errorMsg)
+          // Don't navigate if email failed, let user see the error
+        } finally {
+          setSendingEmail(false)
+        }
+      } else {
+        // Just save, no email
+        navigate('/quotations')
+      }
     } catch (err) {
       setFormError(err.response?.data?.error?.message || 'Failed to save quotation')
     } finally {
@@ -229,14 +264,14 @@ export default function QuotationForm() {
               PDF
             </button>
             <button 
-              onClick={handleSave} 
-              disabled={submitting}
+              onClick={() => handleSave(true)} 
+              disabled={submitting || sendingEmail}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? (
+              {(submitting || sendingEmail) ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Saving...
+                  {sendingEmail ? 'Sending...' : 'Saving...'}
                 </>
               ) : (
                 <>
@@ -264,6 +299,14 @@ export default function QuotationForm() {
           {formError && (
             <div className="max-w-6xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
               <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+            </div>
+          )}
+          {successMessage && (
+            <div className="max-w-6xl mx-auto mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+              <p className="text-green-800 dark:text-green-200 text-sm flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg">check_circle</span>
+                {successMessage}
+              </p>
             </div>
           )}
           {id && loading.quotation && !quotation && !formError && (
@@ -309,7 +352,7 @@ export default function QuotationForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.issueDate}
+                        value={formData.issueDate ? (formData.issueDate.includes('T') ? formData.issueDate.split('T')[0] : formData.issueDate) : ''}
                         onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
                       />
                     </label>
@@ -318,7 +361,7 @@ export default function QuotationForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.expiryDate}
+                        value={formData.expiryDate ? (formData.expiryDate.includes('T') ? formData.expiryDate.split('T')[0] : formData.expiryDate) : ''}
                         onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
                       />
                     </label>
@@ -553,17 +596,14 @@ export default function QuotationForm() {
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
                     <button 
-                      onClick={() => {
-                        setFormData({ ...formData, status: 'sent' })
-                        handleSave()
-                      }}
-                      disabled={submitting}
+                      onClick={() => handleSave(true)}
+                      disabled={submitting || sendingEmail}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {submitting ? (
+                      {(submitting || sendingEmail) ? (
                         <>
                           <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                          Saving...
+                          {sendingEmail ? 'Sending...' : 'Saving...'}
                         </>
                       ) : (
                         <>
@@ -611,17 +651,14 @@ export default function QuotationForm() {
               Preview
             </button>
             <button 
-              onClick={() => {
-                setFormData({ ...formData, status: 'sent' })
-                handleSave()
-              }}
-              disabled={submitting}
+              onClick={() => handleSave(true)}
+              disabled={submitting || sendingEmail}
               className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? (
+              {(submitting || sendingEmail) ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Saving...
+                  {sendingEmail ? 'Sending...' : 'Saving...'}
                 </>
               ) : (
                 <>
