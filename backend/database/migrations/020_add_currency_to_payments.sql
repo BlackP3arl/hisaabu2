@@ -17,3 +17,4 @@ WHERE currency IS NULL;
 -- Add comment
 COMMENT ON COLUMN payments.currency IS 'Currency code for this payment (ISO 4217, must match invoice currency)';
 
+

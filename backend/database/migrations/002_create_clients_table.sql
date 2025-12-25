@@ -41,3 +41,4 @@ COMMENT ON COLUMN clients.status IS 'Client status: active, inactive, new, or ov
 COMMENT ON COLUMN clients.user_id IS 'Owner/creator of this client record';
 
 
+

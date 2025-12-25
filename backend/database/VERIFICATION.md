@@ -250,3 +250,4 @@ ORDER BY ordinal_position;
 If all checks pass, the database is ready for backend implementation!
 
 
+

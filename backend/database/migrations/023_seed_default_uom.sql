@@ -12,3 +12,4 @@ INSERT INTO uoms (name, code, created_at, updated_at)
 SELECT 'Pieces', 'PC', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM uoms WHERE code = 'PC');
 
+

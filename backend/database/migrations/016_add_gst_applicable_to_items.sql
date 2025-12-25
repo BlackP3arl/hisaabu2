@@ -9,3 +9,4 @@ ADD COLUMN IF NOT EXISTS gst_applicable BOOLEAN NOT NULL DEFAULT true;
 -- Add comment
 COMMENT ON COLUMN items.gst_applicable IS 'Whether GST (default tax) should be applied when this item is added to invoices/quotations. Defaults to true for backward compatibility.';
 
+

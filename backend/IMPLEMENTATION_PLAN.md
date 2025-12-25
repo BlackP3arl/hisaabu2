@@ -557,3 +557,4 @@ Use database views or calculate in application:
 - Use transactions for operations that modify multiple tables
 
 
+

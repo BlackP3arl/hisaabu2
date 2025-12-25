@@ -72,3 +72,4 @@ ALTER TABLE company_settings
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
+

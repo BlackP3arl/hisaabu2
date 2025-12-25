@@ -14,3 +14,4 @@ ADD COLUMN IF NOT EXISTS document_taxes JSONB DEFAULT '[]'::jsonb;
 COMMENT ON COLUMN invoices.document_taxes IS 'Array of document-level taxes (non-GST). Format: [{"taxId": 1, "name": "Service Tax", "rate": 5.0, "amount": 50.00}]';
 COMMENT ON COLUMN quotations.document_taxes IS 'Array of document-level taxes (non-GST). Format: [{"taxId": 1, "name": "Service Tax", "rate": 5.0, "amount": 50.00}]';
 
+

@@ -29,3 +29,4 @@ COMMENT ON COLUMN categories.color IS 'Hex color code (e.g., #3B82F6)';
 COMMENT ON COLUMN categories.item_count IS 'Count of items in this category (denormalized for performance)';
 
 
+

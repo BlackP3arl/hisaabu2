@@ -7,6 +7,7 @@ import {
   update,
   remove,
 } from '../controllers/invoiceController.js';
+import { generateInvoicePDFController } from '../controllers/pdfController.js';
 import { authenticate } from '../middleware/auth.js';
 import { handleValidationErrors } from '../middleware/validation.js';
 
@@ -117,10 +118,12 @@ const queryValidation = [
 // Routes
 router.get('/', queryValidation, handleValidationErrors, listInvoices);
 router.get('/:id', getInvoice);
+router.get('/:id/pdf', generateInvoicePDFController);
 router.post('/', createInvoiceValidation, handleValidationErrors, create);
 router.put('/:id', updateInvoiceValidation, handleValidationErrors, update);
 router.delete('/:id', remove);
 
 export default router;
+
 
 

@@ -30,3 +30,4 @@ COMMENT ON COLUMN share_links.password_hash IS 'Bcrypt hashed password (nullable
 COMMENT ON COLUMN share_links.is_active IS 'Whether the link is active (can be deactivated without deletion)';
 
 
+

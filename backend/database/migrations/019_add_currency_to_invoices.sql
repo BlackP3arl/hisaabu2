@@ -23,3 +23,4 @@ ADD CONSTRAINT chk_exchange_rate CHECK (exchange_rate IS NULL OR exchange_rate >
 COMMENT ON COLUMN invoices.currency IS 'Currency code for this invoice (ISO 4217)';
 COMMENT ON COLUMN invoices.exchange_rate IS 'Exchange rate to base currency (1 [currency] = exchange_rate USD). NULL if currency is base currency.';
 
+

@@ -16,3 +16,4 @@ ADD CONSTRAINT chk_rate CHECK (rate IS NULL OR rate >= 0);
 -- Update comment
 COMMENT ON COLUMN items.rate IS 'Unit price per piece (optional - prices entered at document level for multi-currency support)';
 
+

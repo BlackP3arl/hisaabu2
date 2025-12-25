@@ -135,9 +135,8 @@ export default function SecureShare() {
 
   const handleDownloadPdf = async () => {
     try {
-      const endpoint = document?.documentType === 'quotation' 
-        ? `/quotations/${document.documentId}/pdf`
-        : `/invoices/${document.documentId}/pdf`
+      // Use public PDF endpoint since we're accessing via share link
+      const endpoint = `/public/share/${token}/pdf`
       
       const response = await apiClient.get(endpoint, {
         responseType: 'blob'
@@ -149,6 +148,7 @@ export default function SecureShare() {
       document.body.appendChild(link)
       link.click()
       link.remove()
+      window.URL.revokeObjectURL(url)
     } catch (err) {
       const errorMessage = handleApiError(err)
       setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to download PDF')

@@ -22,3 +22,4 @@ GROUP BY c.id, c.name, c.email, c.status, c.user_id;
 COMMENT ON VIEW client_summary IS 'Aggregated view of client financial information';
 
 
+

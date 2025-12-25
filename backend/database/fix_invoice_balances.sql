@@ -59,3 +59,4 @@ WHERE EXISTS (
     SELECT 1 FROM invoice_items WHERE invoice_id = i.id
 );
 
+

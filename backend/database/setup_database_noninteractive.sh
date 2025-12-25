@@ -93,3 +93,4 @@ echo ""
 echo -e "${GREEN}You can now connect to the database and start building the backend!${NC}"
 
 
+
