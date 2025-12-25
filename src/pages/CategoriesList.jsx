@@ -1,16 +1,47 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
 
 export default function CategoriesList() {
-  const { categories, deleteCategory } = useData()
+  const { categories, loading, fetchCategories, deleteCategory } = useData()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // Load categories on mount
+  useEffect(() => {
+    fetchCategories()
+  }, [fetchCategories])
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Fetch categories when search changes
+  useEffect(() => {
+    const params = debouncedSearch ? { search: debouncedSearch } : {}
+    fetchCategories(params)
+  }, [debouncedSearch, fetchCategories])
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this category?')) {
+      try {
+        await deleteCategory(id)
+        fetchCategories()
+      } catch (err) {
+        console.error('Failed to delete category:', err)
+      }
+    }
+  }
 
   const filteredCategories = categories.filter(category => {
-    return !search || 
-      category.name.toLowerCase().includes(search.toLowerCase()) || 
-      category.description.toLowerCase().includes(search.toLowerCase())
+    return !debouncedSearch || 
+      category.name.toLowerCase().includes(debouncedSearch.toLowerCase()) || 
+      (category.description && category.description.toLowerCase().includes(debouncedSearch.toLowerCase()))
   })
 
   const headerActions = (
@@ -57,73 +88,94 @@ export default function CategoriesList() {
 
       {/* Desktop Grid View */}
       <div className="hidden lg:block px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredCategories.map((category) => (
-            <div 
-              key={category.id} 
-              className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-lg transition-shadow group"
-            >
-              <div 
-                className="h-2"
-                style={{ backgroundColor: category.color }}
-              ></div>
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
-                      style={{ backgroundColor: category.color }}
-                    >
-                      {category.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-white text-lg">{category.name}</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">{category.itemCount || 0} items</p>
+        {loading.categories ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="h-2 bg-slate-200 dark:bg-slate-700 animate-pulse"></div>
+                <div className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700 rounded-xl animate-pulse"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 animate-pulse"></div>
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse"></div>
                     </div>
                   </div>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                    <Link
-                      to={`/categories/${category.id}`}
-                      className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                      title="Edit"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">edit</span>
-                    </Link>
-                    <button
-                      onClick={() => deleteCategory(category.id)}
-                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="Delete"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">delete</span>
-                    </button>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{category.description}</p>
-                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span 
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: category.color }}
-                    ></span>
-                    <span className="text-xs text-slate-400 font-mono">{category.color}</span>
-                  </div>
-                  <Link 
-                    to={`/items?category=${category.id}`}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    View Items →
-                  </Link>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredCategories.length === 0 && (
-          <div className="text-center py-12">
-            <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">category</span>
-            <p className="text-slate-500 dark:text-slate-400">No categories found</p>
+            ))}
           </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredCategories.map((category) => (
+                <div 
+                  key={category.id} 
+                  className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-lg transition-shadow group"
+                >
+                  <div 
+                    className="h-2"
+                    style={{ backgroundColor: category.color }}
+                  ></div>
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                          style={{ backgroundColor: category.color }}
+                        >
+                          {category.name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 dark:text-white text-lg">{category.name}</h3>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">{category.itemCount || 0} items</p>
+                        </div>
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        <Link
+                          to={`/categories/${category.id}`}
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">edit</span>
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(category.id)}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{category.description || 'No description'}</p>
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        ></span>
+                        <span className="text-xs text-slate-400 font-mono">{category.color}</span>
+                      </div>
+                      <Link 
+                        to={`/items?category=${category.id}`}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        View Items →
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {filteredCategories.length === 0 && !loading.categories && (
+              <div className="text-center py-12">
+                <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">category</span>
+                <p className="text-slate-500 dark:text-slate-400">No categories found</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -141,57 +193,78 @@ export default function CategoriesList() {
           <span className="material-symbols-outlined text-slate-400">chevron_right</span>
         </Link>
 
-        {filteredCategories.map((category) => (
-          <div 
-            key={category.id} 
-            className="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-700/50 overflow-hidden"
-          >
-            <div 
-              className="h-1.5"
-              style={{ backgroundColor: category.color }}
-            ></div>
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex gap-3 flex-1 min-w-0">
-                  <div 
-                    className="shrink-0 h-12 w-12 rounded-lg flex items-center justify-center text-white font-bold text-lg"
-                    style={{ backgroundColor: category.color }}
-                  >
-                    {category.name.charAt(0)}
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white truncate">{category.name}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{category.description}</p>
+        {loading.categories ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="h-1.5 bg-slate-200 dark:bg-slate-700 animate-pulse"></div>
+                <div className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 animate-pulse"></div>
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse"></div>
+                    </div>
                   </div>
                 </div>
-                <Link to={`/categories/${category.id}`} className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 -mr-2">
-                  <span className="material-symbols-outlined">edit</span>
-                </Link>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span 
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: category.color }}
-                  ></span>
-                  <span className="text-xs text-slate-400">{category.itemCount || 0} items</span>
-                </div>
-                <Link 
-                  to={`/items?category=${category.id}`}
-                  className="text-xs font-medium text-primary"
-                >
-                  View Items
-                </Link>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
+        ) : (
+          <>
+            {filteredCategories.map((category) => (
+              <div 
+                key={category.id} 
+                className="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-700/50 overflow-hidden"
+              >
+                <div 
+                  className="h-1.5"
+                  style={{ backgroundColor: category.color }}
+                ></div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3 flex-1 min-w-0">
+                      <div 
+                        className="shrink-0 h-12 w-12 rounded-lg flex items-center justify-center text-white font-bold text-lg"
+                        style={{ backgroundColor: category.color }}
+                      >
+                        {category.name?.charAt(0) || '?'}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <h3 className="font-bold text-base text-slate-900 dark:text-white truncate">{category.name}</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{category.description || 'No description'}</p>
+                      </div>
+                    </div>
+                    <Link to={`/categories/${category.id}`} className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 -mr-2">
+                      <span className="material-symbols-outlined">edit</span>
+                    </Link>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: category.color }}
+                      ></span>
+                      <span className="text-xs text-slate-400">{category.itemCount || 0} items</span>
+                    </div>
+                    <Link 
+                      to={`/items?category=${category.id}`}
+                      className="text-xs font-medium text-primary"
+                    >
+                      View Items
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
 
-        {filteredCategories.length === 0 && (
-          <div className="text-center py-12">
-            <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">category</span>
-            <p className="text-slate-500 dark:text-slate-400">No categories found</p>
-          </div>
+            {filteredCategories.length === 0 && !loading.categories && (
+              <div className="text-center py-12">
+                <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">category</span>
+                <p className="text-slate-500 dark:text-slate-400">No categories found</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -205,4 +278,3 @@ export default function CategoriesList() {
     </Layout>
   )
 }
-

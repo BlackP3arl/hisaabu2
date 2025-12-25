@@ -1,32 +1,50 @@
 import { useState, useRef, useEffect } from 'react'
 import { useData } from '../context/DataContext'
+import { handleApiError } from '../utils/errorHandler'
 
 export default function ClientSelector({ onSelect, onClose, selectedClientId }) {
-  const { clients, addClient } = useData()
+  const { clients, loading, fetchClients, createClient } = useData()
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newClient, setNewClient] = useState({
     name: '',
     email: '',
     phone: '',
-    company: '',
+    companyName: '',
     address: '',
+    city: '',
+    country: '',
     status: 'active'
   })
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState(null)
   const searchRef = useRef(null)
 
   useEffect(() => {
     searchRef.current?.focus()
-  }, [])
+    fetchClients({ limit: 100 })
+  }, [fetchClients])
 
-  const filteredClients = clients.filter(client => {
-    if (!search) return true
-    const searchLower = search.toLowerCase()
-    return client.name.toLowerCase().includes(searchLower) || 
-           client.email.toLowerCase().includes(searchLower) ||
-           client.phone?.toLowerCase().includes(searchLower) ||
-           client.address?.toLowerCase().includes(searchLower)
-  })
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Fetch clients when search changes
+  useEffect(() => {
+    if (debouncedSearch) {
+      fetchClients({ search: debouncedSearch, limit: 100 })
+    } else {
+      fetchClients({ limit: 100 })
+    }
+  }, [debouncedSearch, fetchClients])
+
+  // Use clients directly from API (server-side search)
+  const filteredClients = clients
 
   const getStatusStyles = (status) => {
     const styles = {
@@ -55,16 +73,24 @@ export default function ClientSelector({ onSelect, onClose, selectedClientId }) 
     onClose()
   }
 
-  const handleCreateAndSelect = () => {
+  const handleCreateAndSelect = async () => {
     if (!newClient.name || !newClient.email) return
     
-    const createdClient = addClient({
-      ...newClient,
-      totalBilled: 0
-    })
-    
-    onSelect(createdClient)
-    onClose()
+    setCreating(true)
+    setError(null)
+    try {
+      const createdClient = await createClient({
+        ...newClient,
+        companyName: newClient.companyName || null
+      })
+      
+      onSelect(createdClient)
+      onClose()
+    } catch (err) {
+      setError(handleApiError(err))
+    } finally {
+      setCreating(false)
+    }
   }
 
   const handleCreateNew = () => {
@@ -107,7 +133,17 @@ export default function ClientSelector({ onSelect, onClose, selectedClientId }) 
 
             {/* Clients List */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {filteredClients.length > 0 ? (
+              {error && (
+                <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-800 dark:text-red-200">
+                  {error}
+                </div>
+              )}
+              {loading.clients ? (
+                <div className="text-center py-12">
+                  <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 animate-spin">sync</span>
+                  <p className="text-slate-500 dark:text-slate-400 mt-4">Loading clients...</p>
+                </div>
+              ) : filteredClients.length > 0 ? (
                 <div className="space-y-2">
                   {filteredClients.map((client) => (
                     <button
@@ -226,8 +262,8 @@ export default function ClientSelector({ onSelect, onClose, selectedClientId }) 
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Company Name</label>
                     <input
                       type="text"
-                      value={newClient.company}
-                      onChange={(e) => setNewClient({ ...newClient, company: e.target.value })}
+                      value={newClient.companyName}
+                      onChange={(e) => setNewClient({ ...newClient, companyName: e.target.value })}
                       placeholder="Company Inc."
                       className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary h-12 px-4"
                     />
@@ -235,15 +271,37 @@ export default function ClientSelector({ onSelect, onClose, selectedClientId }) 
                 </div>
 
                 {/* Address */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Address</label>
-                  <textarea
-                    value={newClient.address}
-                    onChange={(e) => setNewClient({ ...newClient, address: e.target.value })}
-                    placeholder="Street, City, Country"
-                    rows="2"
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary p-4 resize-none"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Address</label>
+                    <input
+                      type="text"
+                      value={newClient.address}
+                      onChange={(e) => setNewClient({ ...newClient, address: e.target.value })}
+                      placeholder="Street Address"
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary h-12 px-4"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">City</label>
+                    <input
+                      type="text"
+                      value={newClient.city}
+                      onChange={(e) => setNewClient({ ...newClient, city: e.target.value })}
+                      placeholder="City"
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary h-12 px-4"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Country</label>
+                    <input
+                      type="text"
+                      value={newClient.country}
+                      onChange={(e) => setNewClient({ ...newClient, country: e.target.value })}
+                      placeholder="Country"
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary h-12 px-4"
+                    />
+                  </div>
                 </div>
 
                 {/* Preview Card */}
@@ -264,10 +322,10 @@ export default function ClientSelector({ onSelect, onClose, selectedClientId }) 
                               {newClient.phone}
                             </span>
                           )}
-                          {newClient.company && (
+                          {newClient.companyName && (
                             <span className="flex items-center gap-1">
                               <span className="material-symbols-outlined text-[14px]">business</span>
-                              {newClient.company}
+                              {newClient.companyName}
                             </span>
                           )}
                         </div>
@@ -291,11 +349,20 @@ export default function ClientSelector({ onSelect, onClose, selectedClientId }) 
               </button>
               <button
                 onClick={handleCreateAndSelect}
-                disabled={!newClient.name || !newClient.email}
+                disabled={!newClient.name || !newClient.email || creating}
                 className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <span className="material-symbols-outlined text-[20px]">person_add</span>
-                Add & Select
+                {creating ? (
+                  <>
+                    <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[20px]">person_add</span>
+                    Add & Select
+                  </>
+                )}
               </button>
             </div>
           </>
@@ -304,4 +371,5 @@ export default function ClientSelector({ onSelect, onClose, selectedClientId }) 
     </div>
   )
 }
+
 

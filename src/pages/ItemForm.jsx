@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
@@ -6,35 +6,98 @@ import Sidebar from '../components/Sidebar'
 export default function ItemForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { items, categories, addItem, updateItem } = useData()
-  const item = id ? items.find(i => i.id === parseInt(id)) : null
+  const { getItem, createItem, updateItem, fetchCategories, categories, fetchUoms, uoms, companySettings, fetchCompanySettings, loading } = useData()
+  const [item, setItem] = useState(null)
+  const [formError, setFormError] = useState(null)
 
   const [formData, setFormData] = useState({
-    name: item?.name || '',
-    description: item?.description || '',
-    rate: item?.rate || '',
-    categoryId: item?.categoryId || '',
-    status: item?.status || 'active',
+    name: '',
+    description: '',
+    rate: '',
+    categoryId: '',
+    uomId: 1, // Default to Pieces (PC)
+    status: 'active',
+    gstApplicable: true,
   })
 
-  const handleSave = () => {
+  // Load categories, UOMs and settings on mount
+  useEffect(() => {
+    fetchCategories()
+    fetchUoms()
+    // Fetch settings if not already loaded
+    if (!companySettings) {
+      fetchCompanySettings()
+    }
+  }, [fetchCategories, fetchUoms, fetchCompanySettings, companySettings])
+
+  // Load item data if editing
+  useEffect(() => {
+    if (id) {
+      const loadItem = async () => {
+        try {
+          const itemData = await getItem(parseInt(id))
+          if (itemData) {
+            setItem(itemData)
+            setFormData({
+              name: itemData.name || '',
+              description: itemData.description || '',
+              rate: itemData.rate || '',
+              categoryId: itemData.categoryId || '',
+              uomId: itemData.uomId || 1, // Default to Pieces (PC)
+              status: itemData.status || 'active',
+              gstApplicable: itemData.gstApplicable !== false, // Default to true if not set
+            })
+          }
+        } catch (err) {
+          setFormError('Failed to load item data')
+        }
+      }
+      loadItem()
+    }
+  }, [id, getItem])
+
+  const handleSave = async () => {
+    setFormError(null)
     const data = {
       ...formData,
       rate: parseFloat(formData.rate) || 0,
-      categoryId: parseInt(formData.categoryId) || null,
+      categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
+      uomId: formData.uomId ? parseInt(formData.uomId) : 1, // Default to 1 (Pieces)
     }
-    if (id) {
-      updateItem(parseInt(id), data)
-    } else {
-      addItem(data)
+    try {
+      if (id) {
+        await updateItem(parseInt(id), data)
+      } else {
+        await createItem(data)
+      }
+      navigate('/items')
+    } catch (err) {
+      setFormError(err.response?.data?.error?.message || 'Failed to save item')
     }
-    navigate('/items')
   }
 
   const getCategoryColor = (categoryId) => {
     const category = categories.find(c => c.id === parseInt(categoryId))
     return category?.color || '#6B7280'
   }
+
+  // Get currency symbol from currency code
+  const getCurrencySymbol = (currencyCode) => {
+    const currencyMap = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥',
+      'MVR': 'Rf',
+      'INR': '₹',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'SGD': 'S$',
+    }
+    return currencyMap[currencyCode] || currencyCode || '$'
+  }
+
+  const currencySymbol = getCurrencySymbol(companySettings?.currency || 'USD')
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
@@ -56,9 +119,22 @@ export default function ItemForm() {
             <Link to="/items" className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
               Cancel
             </Link>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              Save Item
+            <button 
+              onClick={handleSave} 
+              disabled={loading.item}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading.item ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save Item
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -78,6 +154,20 @@ export default function ItemForm() {
 
         {/* Content */}
         <div className="flex-1 p-4 lg:p-8">
+          {formError && (
+            <div className="max-w-3xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+              <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+            </div>
+          )}
+          {id && loading.item && !item && (
+            <div className="max-w-3xl mx-auto flex items-center justify-center py-12">
+              <div className="text-center">
+                <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+                <p className="text-slate-500 dark:text-slate-400">Loading item data...</p>
+              </div>
+            </div>
+          )}
+          {(!id || item) && (
           <div className="max-w-3xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Item Preview Card */}
@@ -99,8 +189,8 @@ export default function ItemForm() {
                   </div>
                   {formData.rate && (
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-primary">${parseFloat(formData.rate).toLocaleString()}</p>
-                      <p className="text-xs text-slate-400">/hour</p>
+                      <p className="text-2xl font-bold text-primary">{currencySymbol}{parseFloat(formData.rate).toLocaleString()}</p>
+                      <p className="text-xs text-slate-400">/{uoms.find(u => u.id === parseInt(formData.uomId || 1))?.code || 'PC'}</p>
                     </div>
                   )}
                 </div>
@@ -144,9 +234,9 @@ export default function ItemForm() {
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Hourly Rate *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Unit Price</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">{currencySymbol}</span>
                       <input
                         type="number"
                         value={formData.rate}
@@ -154,8 +244,22 @@ export default function ItemForm() {
                         placeholder="0.00"
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 pl-8 pr-16"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">/hour</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                        /{uoms.find(u => u.id === parseInt(formData.uomId || 1))?.code || 'PC'}
+                      </span>
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Unit of Measure</label>
+                    <select
+                      value={formData.uomId || 1}
+                      onChange={(e) => setFormData({ ...formData, uomId: e.target.value })}
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                    >
+                      {uoms.map(uom => (
+                        <option key={uom.id} value={uom.id}>{uom.name} ({uom.code})</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category *</label>
@@ -192,6 +296,28 @@ export default function ItemForm() {
                       <option value="inactive">Inactive</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">GST Applicable</label>
+                    <div className="flex items-center gap-3">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.gstApplicable}
+                          onChange={(e) => setFormData({ ...formData, gstApplicable: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                      </label>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                          {formData.gstApplicable ? 'GST will be applied' : 'GST will not be applied'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          Apply default GST when this item is added to invoices/quotations
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -200,13 +326,27 @@ export default function ItemForm() {
                 <Link to="/items" className="px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   Cancel
                 </Link>
-                <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-                  <span className="material-symbols-outlined text-[20px]">save</span>
-                  Save Item
+                <button 
+                  onClick={handleSave} 
+                  disabled={loading.item}
+                  className="flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading.item ? (
+                    <>
+                      <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[20px]">save</span>
+                      Save Item
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Mobile Bottom Bar */}
@@ -215,9 +355,22 @@ export default function ItemForm() {
             <Link to="/items" className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm">
               Cancel
             </Link>
-            <button onClick={handleSave} className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              Save Item
+            <button 
+              onClick={handleSave} 
+              disabled={loading.item}
+              className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading.item ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save Item
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -225,4 +378,5 @@ export default function ItemForm() {
     </div>
   )
 }
+
 

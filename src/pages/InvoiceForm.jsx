@@ -1,45 +1,125 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import ItemSelector from '../components/ItemSelector'
 import ClientSelector from '../components/ClientSelector'
 import PrintPreview from '../components/PrintPreview'
+import { getCurrencySymbol, getSupportedCurrencies } from '../utils/currency'
 
 export default function InvoiceForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { invoices, clients, categories, addInvoice, updateInvoice } = useData()
-  const invoice = id ? invoices.find(i => i.id === parseInt(id)) : null
+  const { getInvoice, createInvoice, updateInvoice, fetchClients, fetchCategories, clients, categories, companySettings, fetchCompanySettings, loading } = useData()
+  const [invoice, setInvoice] = useState(null)
+  const [formError, setFormError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const [showItemSelector, setShowItemSelector] = useState(false)
   const [showClientSelector, setShowClientSelector] = useState(false)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [formData, setFormData] = useState({
-    clientId: invoice?.clientId || '',
-    date: invoice?.date || new Date().toISOString().split('T')[0],
-    due: invoice?.due || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    status: invoice?.status || 'draft',
-    items: invoice?.items?.length > 0 ? invoice.items : [],
-    notes: invoice?.notes || '',
-    terms: invoice?.terms || '',
+    clientId: '',
+    issueDate: new Date().toISOString().split('T')[0],
+    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    status: 'draft',
+    items: [],
+    notes: '',
+    terms: '',
+    currency: '',
+    exchangeRate: null,
   })
 
+  // Load clients, categories, and settings on mount
+  useEffect(() => {
+    fetchClients()
+    fetchCategories()
+    // Fetch settings if not already loaded
+    if (!companySettings) {
+      fetchCompanySettings()
+    }
+  }, [fetchClients, fetchCategories, fetchCompanySettings, companySettings])
+
+  // Set default currency from company settings
+  useEffect(() => {
+    if (companySettings && !formData.currency && !id) {
+      setFormData(prev => ({
+        ...prev,
+        currency: companySettings.currency || 'MVR',
+      }))
+    }
+  }, [companySettings, id])
+
+  // Load invoice data if editing
+  useEffect(() => {
+    if (id) {
+      const loadInvoice = async () => {
+        try {
+          const invoiceData = await getInvoice(parseInt(id))
+          if (invoiceData) {
+            // Prevent editing paid invoices
+            if (invoiceData.status === 'paid') {
+              setFormError('Cannot edit a paid invoice. Paid invoices are read-only.')
+              navigate('/invoices')
+              return
+            }
+            setInvoice(invoiceData)
+            setFormData({
+              clientId: invoiceData.clientId || '',
+              issueDate: invoiceData.issueDate || invoiceData.date || new Date().toISOString().split('T')[0],
+              dueDate: invoiceData.dueDate || invoiceData.due || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              status: invoiceData.status || 'draft',
+              items: invoiceData.items?.map(item => ({
+                itemId: item.itemId,
+                name: item.name,
+                description: item.description || '',
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                discountPercent: item.discountPercent || item.discount || 0,
+                taxPercent: item.taxPercent || item.tax || 0,
+                categoryId: item.categoryId,
+                uomCode: item.uomCode || 'PC',
+                uomId: item.uomId,
+              })) || [],
+              notes: invoiceData.notes || '',
+              terms: invoiceData.terms || '',
+              currency: invoiceData.currency || companySettings?.currency || 'MVR',
+              exchangeRate: invoiceData.exchangeRate || null,
+            })
+          }
+        } catch (err) {
+          setFormError('Failed to load invoice data')
+        }
+      }
+      loadInvoice()
+    }
+  }, [id, getInvoice])
+
   const client = clients.find(c => c.id === formData.clientId)
-  const number = invoice?.number || `INV-${String(invoices.length + 1).padStart(4, '0')}`
+  const number = invoice?.number || ''
 
   const getCategoryColor = (categoryId) => {
     const category = categories.find(c => c.id === categoryId)
     return category?.color || '#6B7280'
   }
 
+  const baseCurrency = companySettings?.baseCurrency || 'USD'
+  const currencySymbol = getCurrencySymbol(formData.currency || companySettings?.currency || 'MVR')
+  const currencyCode = formData.currency || companySettings?.currency || 'MVR'
+  const showExchangeRate = formData.currency && formData.currency !== baseCurrency
+
   const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-    const discount = formData.items.reduce((sum, item) => sum + (item.quantity * item.price * item.discount / 100), 0)
+    const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * (parseFloat(item.price) || 0)), 0)
+    const discount = formData.items.reduce((sum, item) => {
+      const itemDiscount = item.discountPercent || item.discount || 0
+      return sum + (item.quantity * (parseFloat(item.price) || 0) * itemDiscount / 100)
+    }, 0)
     const afterDiscount = subtotal - discount
     const tax = formData.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.price * (1 - item.discount / 100)
-      return sum + (itemTotal * item.tax / 100)
+      const itemDiscount = item.discountPercent || item.discount || 0
+      const itemTax = item.taxPercent || item.tax || 0
+      const itemTotal = item.quantity * (parseFloat(item.price) || 0) * (1 - itemDiscount / 100)
+      return sum + (itemTotal * itemTax / 100)
     }, 0)
     const total = afterDiscount + tax
     return { subtotal, discount, tax, total }
@@ -59,12 +139,31 @@ export default function InvoiceForm() {
   }
 
   const handleAddItem = (item) => {
-    setFormData({ ...formData, items: [...formData.items, item] })
+    // Items no longer have default prices - price must be entered manually in document currency
+    const newItem = {
+      itemId: item.id,
+      name: item.name,
+      description: item.description || '',
+      quantity: 1,
+      price: 0, // Price must be entered manually - no default from item
+      discountPercent: 0,
+      taxPercent: item.taxPercent !== undefined ? item.taxPercent : (item.tax !== undefined ? item.tax : 0),
+      categoryId: item.categoryId,
+      uomCode: item.uomCode || 'PC',
+      uomId: item.uomId,
+    }
+    setFormData({ ...formData, items: [...formData.items, newItem] })
   }
 
   const handleUpdateItem = (index, field, value) => {
     const newItems = [...formData.items]
-    newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+    if (field === 'discount' || field === 'discountPercent') {
+      newItems[index] = { ...newItems[index], discountPercent: parseFloat(value) || 0 }
+    } else if (field === 'tax' || field === 'taxPercent') {
+      newItems[index] = { ...newItems[index], taxPercent: parseFloat(value) || 0 }
+    } else {
+      newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
+    }
     setFormData({ ...formData, items: newItems })
   }
 
@@ -87,20 +186,82 @@ export default function InvoiceForm() {
     return colors[index]
   }
 
-  const handleSave = () => {
-    const data = {
-      ...formData,
-      number,
-      amount: total,
-      clientName: client?.name || '',
+  const handleSave = async (sendInvoice = false) => {
+    setFormError(null)
+    
+    // Prevent editing paid invoices
+    if (invoice?.status === 'paid') {
+      setFormError('Cannot edit a paid invoice. Paid invoices are read-only.')
+      navigate('/invoices')
+      return
     }
-    if (id) {
-      updateInvoice(parseInt(id), data)
-    } else {
-      addInvoice(data)
+    
+    if (!formData.clientId) {
+      setFormError('Please select a client')
+      return
     }
-    navigate('/invoices')
+    if (formData.items.length === 0) {
+      setFormError('Please add at least one item')
+      return
+    }
+    if (!formData.currency) {
+      setFormError('Please select a currency')
+      return
+    }
+
+    // Validate all items have prices
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i]
+      if (!item.price || item.price <= 0) {
+        setFormError(`Item ${i + 1} (${item.name}): Price is required and must be > 0`)
+        return
+      }
+    }
+
+    // Validate exchange rate if currency is not base currency
+    if (formData.currency !== baseCurrency) {
+      if (!formData.exchangeRate || formData.exchangeRate <= 0) {
+        setFormError('Exchange rate is required when currency differs from base currency')
+        return
+      }
+    }
+    
+    setSubmitting(true)
+    try {
+      const data = {
+        clientId: parseInt(formData.clientId),
+        issueDate: formData.issueDate,
+        dueDate: formData.dueDate,
+        status: sendInvoice ? 'sent' : formData.status, // Set to 'sent' when sending invoice
+        items: formData.items.map(item => ({
+          itemId: item.itemId,
+          name: item.name,
+          description: item.description || '',
+          quantity: parseFloat(item.quantity) || 1,
+          price: parseFloat(item.price) || 0,
+          discountPercent: parseFloat(item.discountPercent || 0),
+          taxPercent: parseFloat(item.taxPercent || 0),
+        })),
+        notes: formData.notes,
+        terms: formData.terms,
+        currency: formData.currency,
+        exchangeRate: formData.currency !== baseCurrency ? formData.exchangeRate : null,
+      }
+      
+      if (id) {
+        await updateInvoice(parseInt(id), data)
+      } else {
+        await createInvoice(data)
+      }
+      navigate('/invoices')
+    } catch (err) {
+      setFormError(err.response?.data?.error?.message || 'Failed to save invoice')
+    } finally {
+      setSubmitting(false)
+    }
   }
+
+  const isPaid = invoice?.status === 'paid'
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
@@ -118,6 +279,12 @@ export default function InvoiceForm() {
               <p className="text-sm text-slate-500 dark:text-slate-400">{number}</p>
             </div>
           </div>
+          {isPaid && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">lock</span>
+              <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Paid invoices cannot be edited</span>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setShowPrintPreview(true)}
@@ -133,9 +300,22 @@ export default function InvoiceForm() {
               <span className="material-symbols-outlined text-[20px]">download</span>
               PDF
             </button>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-              <span className="material-symbols-outlined text-[20px]">send</span>
-              Send Invoice
+            <button 
+              onClick={() => handleSave(true)} 
+              disabled={submitting || loading.invoice || isPaid}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">send</span>
+                  Send Invoice
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -154,8 +334,22 @@ export default function InvoiceForm() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-4 lg:p-8">
-          <div className="max-w-6xl mx-auto">
+        <div className="flex-1 p-4 lg:px-8 lg:py-8">
+          {formError && (
+            <div className="max-w-[1600px] mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+              <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+            </div>
+          )}
+          {id && loading.invoice && !invoice && (
+            <div className="max-w-[1600px] mx-auto flex items-center justify-center py-12">
+              <div className="text-center">
+                <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+                <p className="text-slate-500 dark:text-slate-400">Loading invoice data...</p>
+              </div>
+            </div>
+          )}
+          {(!id || invoice) && (
+          <div className="max-w-[1600px] mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Left Column - Main Form */}
               <div className="lg:col-span-2 space-y-6">
@@ -185,8 +379,8 @@ export default function InvoiceForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        value={formData.issueDate}
+                        onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -194,10 +388,55 @@ export default function InvoiceForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.due}
-                        onChange={(e) => setFormData({ ...formData, due: e.target.value })}
+                        value={formData.dueDate}
+                        onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                       />
                     </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Currency</span>
+                      <select
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                        value={formData.currency}
+                        onChange={(e) => {
+                          const newCurrency = e.target.value
+                          setFormData({ 
+                            ...formData, 
+                            currency: newCurrency,
+                            exchangeRate: newCurrency !== baseCurrency ? formData.exchangeRate : null
+                          })
+                        }}
+                        required
+                      >
+                        <option value="">Select Currency</option>
+                        {getSupportedCurrencies().map(curr => (
+                          <option key={curr.code} value={curr.code}>
+                            {curr.code} - {curr.symbol} {curr.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {showExchangeRate && (
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Exchange Rate (1 {formData.currency} = ? {baseCurrency})
+                        </span>
+                        <input
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                          type="number"
+                          step="0.0001"
+                          min="0.0001"
+                          value={formData.exchangeRate || ''}
+                          onChange={(e) => setFormData({ ...formData, exchangeRate: parseFloat(e.target.value) || null })}
+                          placeholder="0.0000"
+                          required
+                        />
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Enter the exchange rate used for this document
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -274,12 +513,15 @@ export default function InvoiceForm() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-center">
-                                  <input 
-                                    type="number" 
-                                    value={item.quantity} 
-                                    onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
-                                    className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
-                                  />
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <input 
+                                      type="number" 
+                                      value={item.quantity} 
+                                      onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
+                                      className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                    />
+                                    <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input 
@@ -292,21 +534,21 @@ export default function InvoiceForm() {
                                 <td className="px-4 py-3 text-right">
                                   <input 
                                     type="number" 
-                                    value={item.discount} 
-                                    onChange={(e) => handleUpdateItem(index, 'discount', e.target.value)}
+                                    value={item.discountPercent || item.discount || 0} 
+                                    onChange={(e) => handleUpdateItem(index, 'discountPercent', e.target.value)}
                                     className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input 
                                     type="number" 
-                                    value={item.tax} 
-                                    onChange={(e) => handleUpdateItem(index, 'tax', e.target.value)}
+                                    value={item.taxPercent || item.tax || 0} 
+                                    onChange={(e) => handleUpdateItem(index, 'taxPercent', e.target.value)}
                                     className="w-16 text-right rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  ${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}
+                                  {currencySymbol}{((item.quantity * (parseFloat(item.price) || 0) * (1 - (item.discountPercent || item.discount || 0) / 100)) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button 
@@ -339,12 +581,12 @@ export default function InvoiceForm() {
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</p>
                                 </div>
                               </div>
-                              <span className="font-bold text-gray-900 dark:text-white text-sm">${(item.quantity * item.price * (1 - item.discount / 100)).toFixed(2)}</span>
+                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(item.quantity * (parseFloat(item.price) || 0) * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
-                                <span>x ${item.price.toFixed(2)}</span>
+                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity} <span className="text-gray-400">{item.uomCode || 'PC'}</span></span>
+                                <span>x {currencySymbol}{(parseFloat(item.price) || 0).toFixed(2)}</span>
                               </div>
                               <div className="flex gap-2">
                                 <button 
@@ -403,24 +645,24 @@ export default function InvoiceForm() {
                     <div className="space-y-3">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
-                        <span className="font-medium text-gray-900 dark:text-white">${subtotal.toFixed(2)}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{currencySymbol}{subtotal.toFixed(2)}</span>
                       </div>
                       {discount > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500 dark:text-gray-400">Discount</span>
-                          <span className="font-medium text-green-600 dark:text-green-400">-${discount.toFixed(2)}</span>
+                          <span className="font-medium text-green-600 dark:text-green-400">-{currencySymbol}{discount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500 dark:text-gray-400">Tax</span>
-                        <span className="font-medium text-gray-900 dark:text-white">${tax.toFixed(2)}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{currencySymbol}{tax.toFixed(2)}</span>
                       </div>
                       <div className="h-px w-full bg-gray-200 dark:bg-gray-700 my-3"></div>
                       <div className="flex justify-between items-end">
                         <span className="text-base font-bold text-gray-900 dark:text-white">Grand Total</span>
                         <div className="flex flex-col items-end">
-                          <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
-                          <span className="text-xs text-gray-400">USD</span>
+                          <span className="text-2xl font-bold text-primary">{currencySymbol}{total.toFixed(2)}</span>
+                          <span className="text-xs text-gray-400">{currencyCode}</span>
                         </div>
                       </div>
                     </div>
@@ -438,22 +680,50 @@ export default function InvoiceForm() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-slate-500 dark:text-slate-400">Amount Paid</span>
-                        <span className="font-medium text-slate-900 dark:text-white">$0.00</span>
+                        <span className="font-medium text-slate-900 dark:text-white">{currencySymbol}0.00</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-slate-500 dark:text-slate-400">Balance Due</span>
-                        <span className="font-bold text-red-600 dark:text-red-400">${total.toFixed(2)}</span>
+                        <span className="font-bold text-red-600 dark:text-red-400">{currencySymbol}{total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
-                    <button onClick={handleSave} className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">send</span>
-                      Send Invoice
+                    {isPaid && (
+                      <div className="w-full px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">lock</span>
+                          <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Paid invoices cannot be edited</span>
+                        </div>
+                      </div>
+                    )}
+                    <button 
+                      onClick={() => handleSave(true)} 
+                      disabled={submitting || loading.invoice || isPaid}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[20px]">send</span>
+                          Send Invoice
+                        </>
+                      )}
                     </button>
-                    <button className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <button 
+                      onClick={() => {
+                        setFormData({ ...formData, status: 'draft' })
+                        handleSave()
+                      }}
+                      disabled={submitting || loading.invoice || isPaid}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                    >
                       <span className="material-symbols-outlined text-[20px]">save</span>
                       Save as Draft
                     </button>
@@ -462,6 +732,7 @@ export default function InvoiceForm() {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Mobile Bottom Bar */}
@@ -474,9 +745,22 @@ export default function InvoiceForm() {
               <span className="material-symbols-outlined text-[20px]">visibility</span>
               Preview
             </button>
-            <button onClick={handleSave} className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
-              <span className="material-symbols-outlined text-[20px]">send</span>
-              Send Invoice
+            <button 
+              onClick={() => handleSave(true)} 
+              disabled={submitting || loading.invoice || isPaid}
+              className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">send</span>
+                  Send Invoice
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -507,7 +791,9 @@ export default function InvoiceForm() {
             ...formData,
             id: id ? parseInt(id) : null,
             number,
-            amount: formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
+            amount: formData.items.reduce((sum, item) => sum + (item.quantity * (parseFloat(item.price) || 0)), 0),
+            currency: formData.currency,
+            exchangeRate: formData.exchangeRate,
           }}
           client={client}
           onClose={() => setShowPrintPreview(false)}

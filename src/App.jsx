@@ -16,24 +16,57 @@ import ItemsList from './pages/ItemsList'
 import ItemForm from './pages/ItemForm'
 import CategoriesList from './pages/CategoriesList'
 import CategoryForm from './pages/CategoryForm'
+import UOMsList from './pages/UOMsList'
+import UOMForm from './pages/UOMForm'
 import Settings from './pages/Settings'
 import SecureShare from './pages/SecureShare'
 import { DataProvider } from './context/DataContext'
+import { isAuthenticated as checkAuth, clearAuth } from './utils/auth'
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('isAuthenticated') === 'true'
-  })
+  const [isAuthenticated, setIsAuthenticated] = useState(checkAuth)
 
   useEffect(() => {
-    localStorage.setItem('isAuthenticated', isAuthenticated.toString())
-  }, [isAuthenticated])
+    // Check authentication status on mount and when storage changes
+    const checkAuthStatus = () => {
+      const authStatus = checkAuth()
+      setIsAuthenticated(authStatus)
+      
+      // If not authenticated and not on login/signup page, clear any stale data
+      if (!authStatus && !['/login', '/signup'].includes(window.location.pathname)) {
+        clearAuth()
+      }
+    }
+
+    checkAuthStatus()
+
+    // Listen for storage changes (e.g., when login happens in another tab)
+    const handleStorageChange = (e) => {
+      if (e.key === 'accessToken' || e.key === 'refreshToken') {
+        checkAuthStatus()
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+
+    // Also check periodically (every 5 minutes) to catch token expiration
+    const interval = setInterval(checkAuthStatus, 5 * 60 * 1000)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(interval)
+    }
+  }, [])
+
+  const handleLogin = () => {
+    setIsAuthenticated(true)
+  }
 
   return (
     <DataProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login onLogin={() => setIsAuthenticated(true)} />} />
+          <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/share/:type/:id" element={<SecureShare />} />
           
@@ -58,6 +91,9 @@ function App() {
               <Route path="/categories" element={<CategoriesList />} />
               <Route path="/categories/new" element={<CategoryForm />} />
               <Route path="/categories/:id" element={<CategoryForm />} />
+              <Route path="/uoms" element={<UOMsList />} />
+              <Route path="/uoms/new" element={<UOMForm />} />
+              <Route path="/uoms/:id" element={<UOMForm />} />
               <Route path="/settings" element={<Settings />} />
             </>
           ) : (

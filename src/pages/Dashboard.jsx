@@ -1,25 +1,35 @@
+import { useEffect, useState } from 'react'
 import { useData } from '../context/DataContext'
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { formatCurrency, getCurrencySymbol } from '../utils/currency'
 
 export default function Dashboard() {
-  const { quotations, invoices } = useData()
+  const { dashboardStats, loading, fetchDashboardStats } = useData()
   
-  const stats = {
-    totalOutstanding: 12450,
-    totalQuotations: quotations.length,
-    totalInvoices: invoices.length,
-    paid: invoices.filter(i => i.status === 'paid').length,
-    unpaid: invoices.filter(i => i.status === 'sent' || i.status === 'draft').length,
-    overdue: invoices.filter(i => i.status === 'overdue').length,
+  useEffect(() => {
+    fetchDashboardStats()
+  }, [fetchDashboardStats])
+
+  const stats = dashboardStats || {
+    totalOutstanding: 0,
+    totalQuotations: 0,
+    totalInvoices: 0,
+    totalPaid: 0,
+    paidInvoices: 0,
+    unpaidInvoices: 0,
+    overdueInvoices: 0,
+    pendingApprovalQuotations: 0,
+    paidTodayInvoices: 0,
+    totalOutstandingByCurrency: [],
+    totalPaidByCurrency: [],
+    paidInvoicesByCurrency: [],
+    overdueInvoicesByCurrency: [],
+    recentActivity: []
   }
 
-  const recentActivity = [
-    { type: 'payment', title: 'Invoice #1024 Paid', client: 'Acme Corp', amount: '$4,500.00', time: '10:00 AM' },
-    { type: 'sent', title: 'Quotation #550 Sent', client: 'John Doe', project: 'Project Alpha', time: 'Yesterday' },
-    { type: 'viewed', title: 'Quote #549 Viewed', client: 'Tech Solutions Ltd', time: '2 days ago' },
-    { type: 'client', title: 'New Client Added', client: 'Sarah Smith', time: 'Oct 24' },
-  ]
+  const recentActivity = stats.recentActivity || []
+  const [expandedCurrency, setExpandedCurrency] = useState(null)
 
   const quickActions = (
     <div className="flex items-center gap-3">
@@ -52,11 +62,44 @@ export default function Dashboard() {
             </div>
             <div className="relative z-10">
               <p className="text-white/80 text-sm font-medium mb-1">Total Outstanding</p>
-              <h3 className="text-white text-2xl lg:text-3xl font-bold tracking-tight">${stats.totalOutstanding.toLocaleString()}.00</h3>
+              {loading.dashboard ? (
+                <span className="inline-block w-24 h-8 bg-white/20 rounded animate-pulse"></span>
+              ) : stats.totalOutstandingByCurrency && stats.totalOutstandingByCurrency.length > 0 ? (
+                <div className="space-y-2">
+                  {stats.totalOutstandingByCurrency.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <h3 className="text-white text-xl lg:text-2xl font-bold tracking-tight">
+                        {formatCurrency(item.amount, item.currency)}
+                      </h3>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <h3 className="text-white text-2xl lg:text-3xl font-bold tracking-tight">
+                  {formatCurrency(stats.totalOutstanding || 0, 'USD')}
+                </h3>
+              )}
             </div>
-            <div className="relative z-10 mt-4 lg:mt-6 flex items-center gap-2">
-              <span className="bg-white/20 backdrop-blur-md text-white text-xs px-2 py-1 rounded-full font-medium">+12% vs last month</span>
-            </div>
+            {stats.totalOutstandingByCurrency && stats.totalOutstandingByCurrency.length > 1 && (
+              <div className="relative z-10 mt-2">
+                <button
+                  onClick={() => setExpandedCurrency(expandedCurrency === 'outstanding' ? null : 'outstanding')}
+                  className="bg-white/20 backdrop-blur-md text-white text-xs px-2 py-1 rounded-full font-medium hover:bg-white/30 transition-colors"
+                >
+                  {expandedCurrency === 'outstanding' ? 'Hide' : 'Show'} breakdown
+                </button>
+                {expandedCurrency === 'outstanding' && (
+                  <div className="mt-2 space-y-1">
+                    {stats.totalOutstandingByCurrency.map((item, idx) => (
+                      <div key={idx} className="text-white/90 text-xs flex justify-between">
+                        <span>{item.currency}:</span>
+                        <span className="font-semibold">{formatCurrency(item.amount, item.currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Total Quotations */}
@@ -64,16 +107,35 @@ export default function Dashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Quotations</p>
-                <h3 className="text-slate-900 dark:text-white text-2xl lg:text-3xl font-bold tracking-tight">{stats.totalQuotations}</h3>
+                <h3 className="text-slate-900 dark:text-white text-2xl lg:text-3xl font-bold tracking-tight">
+                  {loading.dashboard ? (
+                    <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
+                  ) : (
+                    stats.totalQuotations || 0
+                  )}
+                </h3>
               </div>
               <div className="size-10 lg:size-12 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-primary">
                 <span className="material-symbols-outlined text-[24px] lg:text-[28px]">request_quote</span>
               </div>
             </div>
             <div className="mt-4 lg:mt-6">
-              <p className="text-sm text-slate-500 dark:text-slate-400">12 pending approval</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {loading.dashboard ? (
+                  <span className="inline-block w-20 h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
+                ) : (
+                  `${stats.pendingApprovalQuotations || 0} ${stats.pendingApprovalQuotations === 1 ? 'quotation' : 'quotations'} pending approval`
+                )}
+              </p>
               <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
-                <div className="bg-primary h-full rounded-full" style={{ width: '65%' }}></div>
+                <div 
+                  className="bg-primary h-full rounded-full transition-all" 
+                  style={{ 
+                    width: stats.totalQuotations > 0 
+                      ? `${Math.min((stats.pendingApprovalQuotations / stats.totalQuotations) * 100, 100)}%` 
+                      : '0%' 
+                  }}
+                ></div>
               </div>
             </div>
           </div>
@@ -83,16 +145,35 @@ export default function Dashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Invoices</p>
-                <h3 className="text-slate-900 dark:text-white text-2xl lg:text-3xl font-bold tracking-tight">{stats.totalInvoices}</h3>
+                <h3 className="text-slate-900 dark:text-white text-2xl lg:text-3xl font-bold tracking-tight">
+                  {loading.dashboard ? (
+                    <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
+                  ) : (
+                    stats.totalInvoices || 0
+                  )}
+                </h3>
               </div>
               <div className="size-10 lg:size-12 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-600">
                 <span className="material-symbols-outlined text-[24px] lg:text-[28px]">receipt_long</span>
               </div>
             </div>
             <div className="mt-4 lg:mt-6">
-              <p className="text-sm text-slate-500 dark:text-slate-400">5 paid today</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {loading.dashboard ? (
+                  <span className="inline-block w-20 h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
+                ) : (
+                  `${stats.paidTodayInvoices || 0} ${stats.paidTodayInvoices === 1 ? 'invoice' : 'invoices'} paid today`
+                )}
+              </p>
               <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
-                <div className="bg-purple-600 h-full rounded-full" style={{ width: '80%' }}></div>
+                <div 
+                  className="bg-purple-600 h-full rounded-full transition-all" 
+                  style={{ 
+                    width: stats.totalInvoices > 0 
+                      ? `${Math.min((stats.paidTodayInvoices / stats.totalInvoices) * 100, 100)}%` 
+                      : '0%' 
+                  }}
+                ></div>
               </div>
             </div>
           </div>
@@ -103,18 +184,50 @@ export default function Dashboard() {
               <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-full">
                 <span className="material-symbols-outlined text-[20px] block">check_circle</span>
               </span>
-              <div>
-                <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Paid</p>
-                <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.paid}</p>
+              <div className="flex-1">
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Total Paid</p>
+                {stats.totalPaidByCurrency && stats.totalPaidByCurrency.length > 0 ? (
+                  <div className="space-y-1">
+                    {stats.totalPaidByCurrency.map((item, idx) => (
+                      <div key={idx}>
+                        <p className="text-slate-900 dark:text-white text-xl font-bold">
+                          {formatCurrency(item.amount, item.currency)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-900 dark:text-white text-xl font-bold">
+                    {formatCurrency(stats.totalPaid || 0, 'USD')}
+                  </p>
+                )}
+                {stats.paidInvoicesByCurrency && stats.paidInvoicesByCurrency.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {stats.paidInvoicesByCurrency.map((item, idx) => (
+                      <p key={idx} className="text-slate-500 dark:text-slate-400 text-[10px]">
+                        {item.currency}: {item.count} invoices
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex-1 flex items-center gap-3 bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
               <span className="text-red-600 bg-red-50 dark:bg-red-900/20 p-2 rounded-full">
                 <span className="material-symbols-outlined text-[20px] block">error</span>
               </span>
-              <div>
+              <div className="flex-1">
                 <p className="text-red-700 dark:text-red-400 text-xs font-medium uppercase tracking-wide">Overdue</p>
-                <p className="text-red-900 dark:text-red-200 text-xl font-bold">{stats.overdue}</p>
+                <p className="text-red-900 dark:text-red-200 text-xl font-bold">{stats.overdueInvoices || 0}</p>
+                {stats.overdueInvoicesByCurrency && stats.overdueInvoicesByCurrency.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {stats.overdueInvoicesByCurrency.map((item, idx) => (
+                      <p key={idx} className="text-red-500 dark:text-red-400 text-[10px]">
+                        {item.currency}: {item.count}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -126,15 +239,27 @@ export default function Dashboard() {
             <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 p-1.5 rounded-full mb-2">
               <span className="material-symbols-outlined text-[20px] block">check_circle</span>
             </span>
-            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Paid</p>
-            <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.paid}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Total Paid</p>
+            {stats.totalPaidByCurrency && stats.totalPaidByCurrency.length > 0 ? (
+              <div className="text-center">
+                {stats.totalPaidByCurrency.map((item, idx) => (
+                  <p key={idx} className="text-slate-900 dark:text-white text-lg font-bold">
+                    {formatCurrency(item.amount, item.currency)}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-900 dark:text-white text-xl font-bold">
+                {formatCurrency(stats.totalPaid || 0, 'USD')}
+              </p>
+            )}
           </div>
           <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
             <span className="text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded-full mb-2">
               <span className="material-symbols-outlined text-[20px] block">pending</span>
             </span>
             <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Unpaid</p>
-            <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.unpaid}</p>
+            <p className="text-slate-900 dark:text-white text-xl font-bold">{stats.unpaidInvoices || 0}</p>
           </div>
           <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 relative overflow-hidden">
             <div className="absolute inset-0 bg-red-50 dark:bg-red-900/10 opacity-50"></div>
@@ -142,7 +267,7 @@ export default function Dashboard() {
               <span className="material-symbols-outlined text-[20px] block">error</span>
             </span>
             <p className="text-red-700 dark:text-red-400 text-xs font-medium uppercase tracking-wide z-10">Overdue</p>
-            <p className="text-red-900 dark:text-red-200 text-xl font-bold z-10">{stats.overdue}</p>
+            <p className="text-red-900 dark:text-red-200 text-xl font-bold z-10">{stats.overdueInvoices || 0}</p>
           </div>
         </div>
 
@@ -168,7 +293,24 @@ export default function Dashboard() {
             <button className="text-primary text-sm font-semibold hover:underline">View All</button>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700">
-            {recentActivity.map((activity, i) => (
+            {loading.dashboard ? (
+              <div className="p-4 space-y-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 animate-pulse"></div>
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+                <p>No recent activity</p>
+              </div>
+            ) : (
+              recentActivity.map((activity, i) => (
               <div key={i} className="flex items-center gap-3 p-4">
                 <div className={`size-10 rounded-full flex items-center justify-center shrink-0 ${
                   activity.type === 'payment' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' :
@@ -182,13 +324,16 @@ export default function Dashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-slate-900 dark:text-white font-medium truncate">{activity.title}</p>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs truncate">{activity.client} • {activity.amount || activity.project || ''}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs truncate">
+                    {activity.client} • {activity.amount ? formatCurrency(activity.amount, activity.currency || 'USD') : activity.project || ''}
+                  </p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-slate-400 dark:text-slate-500 text-xs">{activity.time}</p>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -1,5 +1,9 @@
 import { useRef, useState } from 'react'
 import { useData } from '../context/DataContext'
+import { handleApiError } from '../utils/errorHandler'
+import apiClient from '../api/client'
+import { getCurrencySymbol, formatCurrency } from '../utils/currency'
+import ShareLinkModal from './ShareLinkModal'
 
 export default function PrintPreview({ 
   type = 'invoice', // 'invoice' or 'quotation'
@@ -7,10 +11,9 @@ export default function PrintPreview({
   client,
   onClose 
 }) {
-  const { company, settings } = useData()
+  const { companySettings, loading, generateShareLink } = useData()
   const printRef = useRef(null)
-  const [showShareLink, setShowShareLink] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
+  const [showShareLinkModal, setShowShareLinkModal] = useState(false)
 
   const isQuotation = type === 'quotation'
   const documentTitle = isQuotation ? 'QUOTATION' : 'INVOICE'
@@ -22,17 +25,28 @@ export default function PrintPreview({
       return { subtotal: data.amount || 0, discount: 0, tax: 0, total: data.amount || 0 }
     }
     const subtotal = data.items.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-    const discount = data.items.reduce((sum, item) => sum + (item.quantity * item.price * (item.discount || 0) / 100), 0)
+    const discount = data.items.reduce((sum, item) => {
+      const discountPercent = item.discountPercent || item.discount || 0
+      return sum + (item.quantity * item.price * discountPercent / 100)
+    }, 0)
     const afterDiscount = subtotal - discount
     const tax = data.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.price * (1 - (item.discount || 0) / 100)
-      return sum + (itemTotal * (item.tax || 0) / 100)
+      const discountPercent = item.discountPercent || item.discount || 0
+      const taxPercent = item.taxPercent || item.tax || 0
+      const itemTotal = item.quantity * item.price * (1 - discountPercent / 100)
+      return sum + (itemTotal * taxPercent / 100)
     }, 0)
     const total = afterDiscount + tax
     return { subtotal, discount, tax, total }
   }
 
   const { subtotal, discount, tax, total } = calculateTotals()
+
+  // Get currency from document data or fallback to company settings
+  const documentCurrency = data.currency || companySettings?.currency || 'MVR'
+  const currencySymbol = getCurrencySymbol(documentCurrency)
+  const baseCurrency = companySettings?.baseCurrency || 'USD'
+  const showExchangeRate = data.exchangeRate && documentCurrency !== baseCurrency
 
   const getStatusStyles = (status) => {
     const styles = {
@@ -47,36 +61,13 @@ export default function PrintPreview({
     return styles[data.status] || styles.draft
   }
 
-  // Generate secure share link
-  const generateShareLink = () => {
-    const baseUrl = window.location.origin
-    const documentId = data.id || 1 // Use document ID if available
-    return `${baseUrl}/share/${type}/${documentId}`
-  }
-
-  const shareLink = generateShareLink()
-
-  const handleCopyLink = async () => {
+  // Generate secure share link via API
+  const handleGenerateShareLink = async (documentType, documentId, options = {}) => {
     try {
-      await navigator.clipboard.writeText(shareLink)
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
+      const shareLink = await generateShareLink(documentType, documentId, options)
+      return shareLink
     } catch (err) {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea')
-      textArea.value = shareLink
-      textArea.style.position = 'fixed'
-      textArea.style.opacity = '0'
-      document.body.appendChild(textArea)
-      textArea.select()
-      try {
-        document.execCommand('copy')
-        setLinkCopied(true)
-        setTimeout(() => setLinkCopied(false), 2000)
-      } catch (err) {
-        console.error('Failed to copy link:', err)
-      }
-      document.body.removeChild(textArea)
+      throw new Error(handleApiError(err))
     }
   }
 
@@ -155,7 +146,7 @@ export default function PrintPreview({
           </div>
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => setShowShareLink(!showShareLink)}
+              onClick={() => setShowShareLinkModal(true)}
               className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">share</span>
@@ -169,7 +160,25 @@ export default function PrintPreview({
               Print
             </button>
             <button 
-              onClick={handlePrint}
+              onClick={async () => {
+                try {
+                  const endpoint = `/${type === 'quotation' ? 'quotations' : 'invoices'}/${data.id}/pdf`
+                  const response = await apiClient.get(endpoint, {
+                    responseType: 'blob'
+                  })
+                  const url = window.URL.createObjectURL(new Blob([response.data]))
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.setAttribute('download', `${type}-${data.number || data.id}.pdf`)
+                  document.body.appendChild(link)
+                  link.click()
+                  link.remove()
+                  window.URL.revokeObjectURL(url)
+                } catch (err) {
+                  const errorMessage = handleApiError(err)
+                  alert(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to download PDF')
+                }
+              }}
               className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">download</span>
@@ -184,63 +193,6 @@ export default function PrintPreview({
           </div>
         </div>
 
-        {/* Share Link Section */}
-        {showShareLink && (
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-primary text-[20px]">link</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">Secure Share Link</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                  Share this link with your client. They'll need a password to view the document.
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2.5 flex items-center gap-2 min-w-0">
-                    <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0">link</span>
-                    <input
-                      type="text"
-                      value={shareLink}
-                      readOnly
-                      className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white min-w-0 outline-none"
-                    />
-                  </div>
-                  <button
-                    onClick={handleCopyLink}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors shrink-0 ${
-                      linkCopied
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-primary text-white hover:bg-blue-600'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">
-                      {linkCopied ? 'check_circle' : 'content_copy'}
-                    </span>
-                    {linkCopied ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-                <div className="mt-3 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px]">lock</span>
-                    <span>Password Protected</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px]">security</span>
-                    <span>Secure Access</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowShareLink(false)}
-                className="p-1 rounded-lg hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors shrink-0"
-              >
-                <span className="material-symbols-outlined text-slate-400 text-[20px]">close</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Preview Content */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900">
           <div 
@@ -254,12 +206,12 @@ export default function PrintPreview({
                 <div className="w-14 h-14 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-primary/30">
                   <span className="material-symbols-outlined text-white text-3xl">business</span>
                 </div>
-                <h1 className="text-2xl font-bold text-slate-900">{company.name}</h1>
-                <p className="text-slate-500 text-sm mt-1">{company.address}</p>
-                <p className="text-slate-500 text-sm">{company.email}</p>
-                <p className="text-slate-500 text-sm">{company.phone}</p>
-                {company.gst && (
-                  <p className="text-slate-400 text-xs mt-2">GST: {company.gst}</p>
+                <h1 className="text-2xl font-bold text-slate-900">{companySettings?.companyName || 'Company Name'}</h1>
+                <p className="text-slate-500 text-sm mt-1">{companySettings?.address || ''}</p>
+                <p className="text-slate-500 text-sm">{companySettings?.email || ''}</p>
+                <p className="text-slate-500 text-sm">{companySettings?.phone || ''}</p>
+                {companySettings?.gst && (
+                  <p className="text-slate-400 text-xs mt-2">GST: {companySettings.gst}</p>
                 )}
               </div>
               <div className="text-left sm:text-right">
@@ -301,7 +253,7 @@ export default function PrintPreview({
                 <label className="block text-[11px] text-slate-400 uppercase tracking-wider font-semibold mb-1">
                   {isQuotation ? 'Total Amount' : 'Amount Due'}
                 </label>
-                <p className="text-sm font-bold text-primary">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="text-sm font-bold text-primary">{formatCurrency(total, documentCurrency)}</p>
               </div>
             </div>
 
@@ -320,7 +272,13 @@ export default function PrintPreview({
                 <tbody className="divide-y divide-slate-100">
                   {data.items && data.items.length > 0 ? (
                     data.items.map((item, index) => {
-                      const lineTotal = item.quantity * item.price * (1 - (item.discount || 0) / 100)
+                      const discountPercent = item.discountPercent || item.discount || 0
+                      const taxPercent = item.taxPercent || item.tax || 0
+                      const itemSubtotal = item.quantity * item.price
+                      const itemDiscountAmount = itemSubtotal * discountPercent / 100
+                      const itemAfterDiscount = itemSubtotal - itemDiscountAmount
+                      const itemTaxAmount = itemAfterDiscount * taxPercent / 100
+                      const lineTotal = itemAfterDiscount + itemTaxAmount
                       return (
                         <tr key={index} className="hover:bg-slate-50">
                           <td className="px-4 py-4">
@@ -329,10 +287,15 @@ export default function PrintPreview({
                               <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-center text-sm text-slate-600">{item.quantity}</td>
-                          <td className="px-4 py-4 text-right text-sm text-slate-600">${item.price.toFixed(2)}</td>
-                          <td className="px-4 py-4 text-right text-sm text-slate-600">{item.tax || 0}%</td>
-                          <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">${lineTotal.toFixed(2)}</td>
+                          <td className="px-4 py-4 text-center text-sm text-slate-600">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span>{item.quantity}</span>
+                              <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-right text-sm text-slate-600">{formatCurrency(item.price, documentCurrency)}</td>
+                          <td className="px-4 py-4 text-right text-sm text-slate-600">{taxPercent.toFixed(2)}%</td>
+                          <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">{formatCurrency(lineTotal, documentCurrency)}</td>
                         </tr>
                       )
                     })
@@ -343,9 +306,9 @@ export default function PrintPreview({
                         <p className="text-xs text-slate-500 mt-0.5">{documentTitle.toLowerCase()} item description</p>
                       </td>
                       <td className="px-4 py-4 text-center text-sm text-slate-600">1</td>
-                      <td className="px-4 py-4 text-right text-sm text-slate-600">${total.toFixed(2)}</td>
+                      <td className="px-4 py-4 text-right text-sm text-slate-600">{formatCurrency(total, documentCurrency)}</td>
                       <td className="px-4 py-4 text-right text-sm text-slate-600">0%</td>
-                      <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">${total.toFixed(2)}</td>
+                      <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900">{formatCurrency(total, documentCurrency)}</td>
                     </tr>
                   )}
                 </tbody>
@@ -357,31 +320,37 @@ export default function PrintPreview({
               <div className="w-72 space-y-2 p-5 bg-slate-50 rounded-xl">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Subtotal</span>
-                  <span className="font-medium text-slate-900">${subtotal.toFixed(2)}</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(subtotal, documentCurrency)}</span>
                 </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">Discount</span>
-                    <span className="font-medium text-green-600">-${discount.toFixed(2)}</span>
+                    <span className="font-medium text-green-600">-{formatCurrency(discount, documentCurrency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Tax</span>
-                  <span className="font-medium text-slate-900">${tax.toFixed(2)}</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(tax, documentCurrency)}</span>
                 </div>
+                {showExchangeRate && (
+                  <div className="flex justify-between text-xs pt-2 border-t border-slate-200">
+                    <span className="text-slate-400">Exchange Rate</span>
+                    <span className="text-slate-500">1 {documentCurrency} = {data.exchangeRate} {baseCurrency}</span>
+                  </div>
+                )}
                 <div className="h-px bg-slate-200 my-3"></div>
                 <div className="flex justify-between items-center">
                   <span className="text-base font-bold text-slate-900">Total</span>
-                  <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-primary">{formatCurrency(total, documentCurrency)}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-400">{settings.currency}</span>
+                  <span className="text-xs text-slate-400">{documentCurrency}</span>
                 </div>
               </div>
             </div>
 
             {/* Notes & Terms */}
-            {(data.notes || data.terms || settings.terms) && (
+            {(data.notes || data.terms || companySettings?.terms) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
                 {(data.notes) && (
                   <div className="p-5 bg-blue-50 rounded-xl border border-blue-100">
@@ -393,11 +362,11 @@ export default function PrintPreview({
                   </div>
                 )}
                 <div className="p-5 bg-amber-50 rounded-xl border border-amber-100">
-                  <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-amber-600 text-[18px]">gavel</span>
-                    Terms & Conditions
-                  </h4>
-                  <p className="text-sm text-slate-600">{data.terms || settings.terms}</p>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-600 text-[18px]">gavel</span>
+                      Terms & Conditions
+                    </h4>
+                    <p className="text-sm text-slate-600">{data.terms || companySettings?.terms || ''}</p>
                 </div>
               </div>
             )}
@@ -405,54 +374,18 @@ export default function PrintPreview({
             {/* Footer */}
             <div className="text-center pt-8 border-t border-slate-200">
               <p className="text-sm text-slate-500 mb-1">Thank you for your business!</p>
-              <p className="text-xs text-slate-400">{company.name} • {company.email} • {company.phone}</p>
+              <p className="text-xs text-slate-400">
+                {companySettings?.companyName || ''} • {companySettings?.email || ''} • {companySettings?.phone || ''}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Mobile Actions */}
         <div className="lg:hidden flex flex-col gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
-          {showShareLink && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 mb-2">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Secure Share Link</h3>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 flex items-center gap-2 min-w-0">
-                  <span className="material-symbols-outlined text-slate-400 text-[16px] shrink-0">link</span>
-                  <input
-                    type="text"
-                    value={shareLink}
-                    readOnly
-                    className="flex-1 bg-transparent text-xs text-slate-900 dark:text-white min-w-0 outline-none truncate"
-                  />
-                </div>
-                <button
-                  onClick={handleCopyLink}
-                  className={`px-3 py-2 rounded-lg font-medium transition-colors shrink-0 ${
-                    linkCopied
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-primary text-white'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    {linkCopied ? 'check_circle' : 'content_copy'}
-                  </span>
-                </button>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">lock</span>
-                  <span>Protected</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">security</span>
-                  <span>Secure</span>
-                </div>
-              </div>
-            </div>
-          )}
           <div className="flex gap-3">
             <button 
-              onClick={() => setShowShareLink(!showShareLink)}
+              onClick={() => setShowShareLinkModal(true)}
               className="flex-1 flex items-center justify-center gap-2 py-3 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 font-semibold"
             >
               <span className="material-symbols-outlined text-[20px]">share</span>
@@ -466,7 +399,25 @@ export default function PrintPreview({
               Print
             </button>
             <button 
-              onClick={handlePrint}
+              onClick={async () => {
+                try {
+                  const endpoint = `/${type === 'quotation' ? 'quotations' : 'invoices'}/${data.id}/pdf`
+                  const response = await apiClient.get(endpoint, {
+                    responseType: 'blob'
+                  })
+                  const url = window.URL.createObjectURL(new Blob([response.data]))
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.setAttribute('download', `${type}-${data.number || data.id}.pdf`)
+                  document.body.appendChild(link)
+                  link.click()
+                  link.remove()
+                  window.URL.revokeObjectURL(url)
+                } catch (err) {
+                  const errorMessage = handleApiError(err)
+                  alert(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to download PDF')
+                }
+              }}
               className="flex-1 flex items-center justify-center gap-2 py-3 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 font-semibold"
             >
               <span className="material-symbols-outlined text-[20px]">download</span>
@@ -475,6 +426,16 @@ export default function PrintPreview({
           </div>
         </div>
       </div>
+
+      {/* Share Link Modal */}
+      <ShareLinkModal
+        isOpen={showShareLinkModal}
+        onClose={() => setShowShareLinkModal(false)}
+        onGenerate={handleGenerateShareLink}
+        documentType={type === 'quotation' ? 'quotation' : 'invoice'}
+        documentId={data.id}
+        loading={loading.shareLink}
+      />
     </div>
   )
 }

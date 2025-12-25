@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
@@ -6,30 +6,66 @@ import Sidebar from '../components/Sidebar'
 export default function ClientForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { clients, addClient, updateClient } = useData()
-  const client = id ? clients.find(c => c.id === parseInt(id)) : null
+  const { getClient, createClient, updateClient, loading } = useData()
+  const [client, setClient] = useState(null)
+  const [formError, setFormError] = useState(null)
 
   const [formData, setFormData] = useState({
-    name: client?.name || '',
-    email: client?.email || '',
-    phone: client?.phone || '',
-    address: client?.address || '',
-    city: client?.city || '',
-    country: client?.country || '',
-    postalCode: client?.postalCode || '',
-    companyName: client?.companyName || '',
-    taxId: client?.taxId || '',
-    notes: client?.notes || '',
-    status: client?.status || 'active',
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    country: '',
+    postalCode: '',
+    companyName: '',
+    taxId: '',
+    notes: '',
+    status: 'active',
   })
 
-  const handleSave = () => {
+  // Load client data if editing
+  useEffect(() => {
     if (id) {
-      updateClient(parseInt(id), formData)
-    } else {
-      addClient(formData)
+      const loadClient = async () => {
+        try {
+          const clientData = await getClient(parseInt(id))
+          if (clientData) {
+            setClient(clientData)
+            setFormData({
+              name: clientData.name || '',
+              email: clientData.email || '',
+              phone: clientData.phone || '',
+              address: clientData.address || '',
+              city: clientData.city || '',
+              country: clientData.country || '',
+              postalCode: clientData.postalCode || '',
+              companyName: clientData.companyName || '',
+              taxId: clientData.taxId || '',
+              notes: clientData.notes || '',
+              status: clientData.status || 'active',
+            })
+          }
+        } catch (err) {
+          setFormError('Failed to load client data')
+        }
+      }
+      loadClient()
     }
-    navigate('/clients')
+  }, [id, getClient])
+
+  const handleSave = async () => {
+    setFormError(null)
+    try {
+      if (id) {
+        await updateClient(parseInt(id), formData)
+      } else {
+        await createClient(formData)
+      }
+      navigate('/clients')
+    } catch (err) {
+      setFormError(err.response?.data?.error?.message || 'Failed to save client')
+    }
   }
 
   return (
@@ -52,9 +88,22 @@ export default function ClientForm() {
             <Link to="/clients" className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
               Cancel
             </Link>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              Save Client
+            <button 
+              onClick={handleSave} 
+              disabled={loading.client}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading.client ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save Client
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -74,6 +123,20 @@ export default function ClientForm() {
 
         {/* Content */}
         <div className="flex-1 p-4 lg:p-8">
+          {formError && (
+            <div className="max-w-4xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+              <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+            </div>
+          )}
+          {id && loading.client && !client && (
+            <div className="max-w-4xl mx-auto flex items-center justify-center py-12">
+              <div className="text-center">
+                <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
+                <p className="text-slate-500 dark:text-slate-400">Loading client data...</p>
+              </div>
+            </div>
+          )}
+          {(!id || client) && (
           <div className="max-w-4xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
               {/* Personal Information */}
@@ -228,13 +291,27 @@ export default function ClientForm() {
                 <Link to="/clients" className="px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   Cancel
                 </Link>
-                <button onClick={handleSave} className="flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold">
-                  <span className="material-symbols-outlined text-[20px]">save</span>
-                  Save Client
+                <button 
+                  onClick={handleSave} 
+                  disabled={loading.client}
+                  className="flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading.client ? (
+                    <>
+                      <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[20px]">save</span>
+                      Save Client
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Mobile Bottom Bar */}
@@ -243,9 +320,22 @@ export default function ClientForm() {
             <Link to="/clients" className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-95 transition-transform">
               Cancel
             </Link>
-            <button onClick={handleSave} className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700">
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              Save Client
+            <button 
+              onClick={handleSave} 
+              disabled={loading.client}
+              className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading.client ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save Client
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -253,4 +343,5 @@ export default function ClientForm() {
     </div>
   )
 }
+
 
