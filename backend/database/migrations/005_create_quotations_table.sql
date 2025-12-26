@@ -44,3 +44,4 @@ COMMENT ON COLUMN quotations.number IS 'Quotation number (e.g., QT-2024-001), un
 COMMENT ON COLUMN quotations.status IS 'Quotation status: draft, sent, accepted, or expired';
 
 
+

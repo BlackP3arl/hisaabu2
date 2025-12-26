@@ -21,3 +21,4 @@ COMMENT ON TABLE uoms IS 'Stores unit of measure definitions (global/shared acro
 COMMENT ON COLUMN uoms.name IS 'UOM display name (e.g., "Pieces", "Kilograms", "Hours")';
 COMMENT ON COLUMN uoms.code IS 'UOM code (e.g., "PC", "KG", "HR") - must be unique';
 
+

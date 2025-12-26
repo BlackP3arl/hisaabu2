@@ -31,3 +31,4 @@ COMMENT ON COLUMN payments.payment_method IS 'Payment method: cash, bank_transfe
 COMMENT ON COLUMN payments.reference_number IS 'Reference/transaction number';
 
 
+

@@ -42,3 +42,4 @@ CREATE TRIGGER trigger_update_quotation_totals
     EXECUTE FUNCTION update_quotation_totals();
 
 
+

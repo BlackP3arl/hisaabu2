@@ -12,3 +12,4 @@ ADD COLUMN IF NOT EXISTS default_tax_id INTEGER;
 -- Add comment
 COMMENT ON COLUMN company_settings.default_tax_id IS 'Default tax ID (references taxes table). GST is applied at item level, others at document level.';
 
+

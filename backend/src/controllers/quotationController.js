@@ -958,18 +958,79 @@ export const sendQuotationEmail = async (req, res) => {
     const acceptUrl = `${frontendUrl}/api/v1/public/quotations/${shareLink.token}/accept`;
     const rejectUrl = `${frontendUrl}/api/v1/public/quotations/${shareLink.token}/reject`;
 
-    // Generate email HTML
-    const emailHtml = generateQuotationEmailTemplate({
-      quotation: toCamelCase(quotation),
-      company: settings,
-      client: {
-        name: quotation.client_name,
-        email: quotation.client_email,
-      },
-      shareUrl,
-      acceptUrl,
-      rejectUrl,
-    });
+    // Convert quotation to camelCase and ensure items are also converted
+    const camelQuotation = toCamelCase(quotation);
+    if (camelQuotation.items && Array.isArray(camelQuotation.items)) {
+      camelQuotation.items = toCamelCaseArray(camelQuotation.items);
+      
+      // Calculate totals from items if not already present
+      if (!camelQuotation.subtotal && camelQuotation.items.length > 0) {
+        camelQuotation.subtotal = camelQuotation.items.reduce((sum, item) => {
+          const quantity = parseFloat(item.quantity || 0);
+          const price = parseFloat(item.price || 0);
+          return sum + (quantity * price);
+        }, 0);
+      }
+      
+      if (!camelQuotation.discountTotal && camelQuotation.items.length > 0) {
+        camelQuotation.discountTotal = camelQuotation.items.reduce((sum, item) => {
+          const quantity = parseFloat(item.quantity || 0);
+          const price = parseFloat(item.price || 0);
+          const discountPercent = parseFloat(item.discountPercent || item.discount_percent || 0);
+          return sum + (quantity * price * discountPercent / 100);
+        }, 0);
+      }
+      
+      if (!camelQuotation.taxTotal && camelQuotation.items.length > 0) {
+        camelQuotation.taxTotal = camelQuotation.items.reduce((sum, item) => {
+          const quantity = parseFloat(item.quantity || 0);
+          const price = parseFloat(item.price || 0);
+          const discountPercent = parseFloat(item.discountPercent || item.discount_percent || 0);
+          const taxPercent = parseFloat(item.taxPercent || item.tax_percent || 0);
+          const itemSubtotal = quantity * price;
+          const itemDiscount = itemSubtotal * discountPercent / 100;
+          const itemAfterDiscount = itemSubtotal - itemDiscount;
+          return sum + (itemAfterDiscount * taxPercent / 100);
+        }, 0);
+      }
+      
+      if (!camelQuotation.totalAmount) {
+        const afterDiscount = (camelQuotation.subtotal || 0) - (camelQuotation.discountTotal || 0);
+        camelQuotation.totalAmount = afterDiscount + (camelQuotation.taxTotal || 0);
+      }
+    }
+
+    // Convert settings to camelCase for consistent access
+    const camelSettings = settings ? toCamelCase(settings) : {};
+
+    // Generate email HTML with error handling
+    let emailHtml;
+    try {
+      emailHtml = generateQuotationEmailTemplate({
+        quotation: camelQuotation,
+        company: camelSettings,
+        client: {
+          name: quotation.client_name || 'Client',
+          email: quotation.client_email,
+          phone: null,
+          address: null,
+        },
+        shareUrl,
+        acceptUrl,
+        rejectUrl,
+      });
+    } catch (templateError) {
+      console.error('❌ [QUOTATION EMAIL] Failed to generate email template:', templateError);
+      return errorResponse(
+        res,
+        'EMAIL_TEMPLATE_ERROR',
+        `Failed to generate email template: ${templateError.message}`,
+        {
+          error: templateError.message,
+        },
+        500
+      );
+    }
 
     // Send email
     console.log('📧 [QUOTATION EMAIL] Preparing to send email for quotation:', quotation.number);
@@ -977,21 +1038,23 @@ export const sendQuotationEmail = async (req, res) => {
     
     let emailResult;
     try {
+      const companyName = camelSettings.companyName || camelSettings.company_name || 'Company';
       emailResult = await sendEmail({
         to: quotation.client_email,
-        subject: `Quotation ${quotation.number} from ${settings.companyName || settings.name || 'Company'}`,
+        subject: `Quotation ${quotation.number} from ${companyName}`,
         html: emailHtml,
       });
       console.log('✅ [QUOTATION EMAIL] Email sent successfully:', emailResult.messageId);
     } catch (emailError) {
-      console.error('❌ [QUOTATION EMAIL] Failed to send email:', emailError.message);
+      console.error('❌ [QUOTATION EMAIL] Failed to send email:', emailError);
+      console.error('❌ [QUOTATION EMAIL] Error details:', emailError.stack);
       // Return error response instead of throwing to provide better feedback
       return errorResponse(
         res,
         'EMAIL_SEND_FAILED',
         emailError.message || 'Failed to send quotation email',
         {
-          email: [emailError.message],
+          email: [emailError.message || 'Unknown error'],
           messageId: null,
         },
         500

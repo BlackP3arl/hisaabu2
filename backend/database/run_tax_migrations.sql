@@ -14,3 +14,4 @@
 -- Display success message
 SELECT 'Tax system migrations completed successfully!' AS status;
 
+

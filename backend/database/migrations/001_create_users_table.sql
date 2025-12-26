@@ -27,3 +27,4 @@ COMMENT ON COLUMN users.password_hash IS 'Bcrypt hashed password';
 COMMENT ON COLUMN users.role IS 'User role: admin or staff';
 
 
+

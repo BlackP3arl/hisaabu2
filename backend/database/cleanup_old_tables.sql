@@ -24,3 +24,4 @@ WHERE table_schema = 'public'
 SELECT 'Old tables removed successfully! Only our schema tables remain.' AS status;
 
 
+

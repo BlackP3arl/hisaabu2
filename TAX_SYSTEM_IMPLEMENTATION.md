@@ -144,3 +144,4 @@ This document describes the implementation of a comprehensive tax management sys
 - Default tax is used when creating new line items
 - Document-level taxes are calculated on subtotal (after discounts, before GST)
 
+

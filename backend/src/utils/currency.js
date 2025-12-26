@@ -149,3 +149,4 @@ export const getSupportedCurrencies = () => {
   return Object.keys(CURRENCY_SYMBOLS).sort();
 };
 
+

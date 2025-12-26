@@ -9,6 +9,7 @@ import {
   convertToInvoice,
   sendQuotationEmail,
 } from '../controllers/quotationController.js';
+import { generateQuotationPDFController } from '../controllers/pdfController.js';
 import { authenticate } from '../middleware/auth.js';
 import { handleValidationErrors } from '../middleware/validation.js';
 
@@ -143,6 +144,7 @@ const queryValidation = [
 // Routes
 router.get('/', queryValidation, handleValidationErrors, listQuotations);
 router.get('/:id', getQuotation);
+router.get('/:id/pdf', generateQuotationPDFController);
 router.post('/', createQuotationValidation, handleValidationErrors, create);
 router.put('/:id', updateQuotationValidation, handleValidationErrors, update);
 router.delete('/:id', remove);

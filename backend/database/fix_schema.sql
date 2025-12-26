@@ -260,3 +260,4 @@ COMMENT ON TABLE share_links IS 'Stores secure share links for quotations and in
 SELECT 'Schema fixed successfully! All tables now match the specification.' AS status;
 
 
+

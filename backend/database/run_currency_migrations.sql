@@ -21,3 +21,4 @@
 -- Display success message
 SELECT 'Multi-currency migrations completed successfully!' AS status;
 
+

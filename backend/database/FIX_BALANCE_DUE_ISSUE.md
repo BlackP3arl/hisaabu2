@@ -83,3 +83,4 @@ Invoice status is now correctly set based on:
 - `sent`: `amount_paid = 0 AND due_date >= CURRENT_DATE`
 - `draft`: Original status if draft
 
+

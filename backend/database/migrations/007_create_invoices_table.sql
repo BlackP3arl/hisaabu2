@@ -52,3 +52,4 @@ COMMENT ON COLUMN invoices.status IS 'Invoice status: draft, sent, paid, partial
 COMMENT ON COLUMN invoices.paid_at IS 'Date when invoice was fully paid';
 
 
+
