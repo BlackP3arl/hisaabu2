@@ -413,7 +413,7 @@ Stores invoice documents.
 | balance_due | DECIMAL(10,2) | NOT NULL, DEFAULT 0 | Outstanding balance (total_amount - amount_paid) |
 | notes | TEXT | | Additional notes for the client |
 | terms | TEXT | | Terms and conditions |
-| status | VARCHAR(20) | NOT NULL, DEFAULT 'draft' | Status: 'draft', 'sent', 'paid', 'partial', 'overdue' |
+| status | VARCHAR(20) | NOT NULL, DEFAULT 'draft' | Status: 'draft', 'sent', 'viewed', 'paid', 'partial', 'overdue' |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Document creation timestamp |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update timestamp |
 | paid_at | TIMESTAMP | | Date when invoice was fully paid |
@@ -442,6 +442,7 @@ Stores invoice documents.
   - Else if `balance_due` < `total_amount`: status = 'partial'
   - Else if `due_date` < CURRENT_DATE and `balance_due` > 0: status = 'overdue'
   - Else if status was 'draft' and sent: status = 'sent'
+  - When client acknowledges invoice via shared link: status = 'viewed' (only if current status is 'draft' or 'sent')
 
 ---
 
