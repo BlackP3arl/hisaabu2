@@ -201,3 +201,7 @@ Keep both terminals open while developing.
 - ⚠️ **Action Required:** Start backend server if not running
 
 
+
+
+
+

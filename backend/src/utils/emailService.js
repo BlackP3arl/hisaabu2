@@ -151,12 +151,18 @@ export const generateQuotationEmailTemplate = ({ quotation, client, company, sha
   const formatCurrency = (amount, currency = 'USD') => {
     try {
       const numAmount = parseFloat(amount) || 0;
-      return new Intl.NumberFormat('en-US', {
+      // Format with comma separation for thousands
+      const formatted = new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: currency || 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       }).format(numAmount);
+      return formatted;
     } catch (e) {
-      return `$${parseFloat(amount || 0).toFixed(2)}`;
+      // Fallback with comma separation
+      const numAmount = parseFloat(amount || 0);
+      return `${currency === 'MVR' ? 'Rf' : '$'}${numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
   };
 
@@ -209,9 +215,9 @@ export const generateQuotationEmailTemplate = ({ quotation, client, company, sha
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quotation ${quotationNumber}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 28px;">${companyName}</h1>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f6f6f8;">
+  <div style="background: #135bec; padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">${companyName}</h1>
     ${companyTagline ? `<p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">${companyTagline}</p>` : ''}
   </div>
   
@@ -280,7 +286,7 @@ export const generateQuotationEmailTemplate = ({ quotation, client, company, sha
         <span>${formatCurrency(quotation.taxTotal, quotation.currency || 'USD')}</span>
       </div>
       ` : ''}
-      <div style="display: flex; justify-content: space-between; margin: 15px 0; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 20px; font-weight: 600; color: #667eea;">
+      <div style="display: flex; justify-content: space-between; margin: 15px 0; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 20px; font-weight: 600; color: #135bec;">
         <span><strong>Total:</strong></span>
         <span>${formatCurrency(quotation.totalAmount || 0, quotation.currency || 'USD')}</span>
       </div>
@@ -288,8 +294,8 @@ export const generateQuotationEmailTemplate = ({ quotation, client, company, sha
 
     ${shareUrl ? `
     <div style="margin: 30px 0; padding: 20px; background: #eff6ff; border-radius: 6px; text-align: center;">
-      <p style="margin: 0 0 15px 0; color: #1e40af; font-weight: 600;">View Quotation Online</p>
-      <a href="${shareUrl}" style="display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Open Quotation</a>
+      <p style="margin: 0 0 15px 0; color: #135bec; font-weight: 600;">View Quotation Online</p>
+      <a href="${shareUrl}" style="display: inline-block; padding: 12px 24px; background: #135bec; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; box-shadow: 0 4px 6px rgba(19, 91, 236, 0.25);">Open Quotation</a>
     </div>
     ` : ''}
 

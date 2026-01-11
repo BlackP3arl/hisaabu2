@@ -3,10 +3,12 @@ import { Link, useLocation } from 'react-router-dom'
 const navItems = [
   { path: '/', icon: 'dashboard', label: 'Dashboard' },
   { path: '/invoices', icon: 'receipt_long', label: 'Invoices' },
+  { path: '/recurring-invoices', icon: 'repeat', label: 'Recurring Invoices' },
   { path: '/quotations', icon: 'request_quote', label: 'Quotations' },
   { path: '/clients', icon: 'group', label: 'Clients' },
   { path: '/items', icon: 'inventory_2', label: 'Items' },
   { path: '/uoms', icon: 'straighten', label: 'Units' },
+  { path: '/reports', icon: 'assessment', label: 'Reports' },
   { path: '/settings', icon: 'settings', label: 'Settings' },
 ]
 

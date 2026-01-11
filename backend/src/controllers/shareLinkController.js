@@ -633,6 +633,14 @@ export const publicAcknowledge = async (req, res) => {
       [token]
     );
 
+    // Update invoice status to 'acknowledged' if it's an invoice
+    if (shareLink.document_type === 'invoice') {
+      await query(
+        'UPDATE invoices SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['acknowledged', shareLink.document_id]
+      );
+    }
+
     return successResponse(
       res,
       null,
@@ -721,6 +729,7 @@ export const publicPDF = async (req, res) => {
     doc.end();
   } catch (error) {
     console.error('Public PDF error:', error);
+    console.error('Error stack:', error.stack);
     if (error.message === 'QUOTATION_NOT_FOUND' || error.message === 'INVOICE_NOT_FOUND') {
       return errorResponse(
         res,
@@ -748,7 +757,14 @@ export const publicPDF = async (req, res) => {
         410
       );
     }
-    throw error;
+    // Return a proper error response instead of throwing
+    return errorResponse(
+      res,
+      'INTERNAL_ERROR',
+      error.message || 'Failed to generate PDF',
+      null,
+      500
+    );
   }
 };
 

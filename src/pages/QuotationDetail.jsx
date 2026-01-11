@@ -250,8 +250,8 @@ export default function QuotationDetail() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 pt-4 pb-4 px-4 lg:pt-8 lg:pb-8 lg:pl-8 lg:pr-0">
-          <div className="w-full lg:mr-8">
+        <div className="flex-1 pt-4 pb-4 px-4 lg:pt-8 lg:pb-8 lg:pl-8 lg:pr-8">
+          <div className="w-full">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Main Content */}
               <div className="lg:col-span-2 space-y-6">

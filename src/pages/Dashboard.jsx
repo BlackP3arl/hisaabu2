@@ -44,6 +44,7 @@ export default function Dashboard() {
       draft: 'draft',
       partial: 'pending',
       overdue: 'error',
+      acknowledged: 'check_circle',
       accepted: 'check_circle',
       expired: 'schedule',
     }
@@ -71,6 +72,10 @@ export default function Dashboard() {
       overdue: {
         bg: 'bg-red-50 dark:bg-red-900/20',
         text: 'text-red-600 dark:text-red-400'
+      },
+      acknowledged: {
+        bg: 'bg-blue-50 dark:bg-blue-900/20',
+        text: 'text-blue-600 dark:text-blue-400'
       },
       accepted: {
         bg: 'bg-emerald-50 dark:bg-emerald-900/20',
@@ -132,7 +137,10 @@ export default function Dashboard() {
           </div>
 
           {/* Total Quotations Card */}
-          <div className="snap-center shrink-0 w-[85%] lg:w-full max-w-[320px] lg:max-w-none bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <Link
+            to="/quotations"
+            className="snap-center shrink-0 w-[85%] lg:w-full max-w-[320px] lg:max-w-none bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-primary/30 transition-all cursor-pointer"
+          >
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Quotations</p>
@@ -155,10 +163,13 @@ export default function Dashboard() {
                 ></div>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* Total Invoices Card */}
-          <div className="snap-center shrink-0 w-[85%] lg:w-full max-w-[320px] lg:max-w-none bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <Link
+            to="/invoices"
+            className="snap-center shrink-0 w-[85%] lg:w-full max-w-[320px] lg:max-w-none bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-purple-300 dark:hover:border-purple-600 transition-all cursor-pointer"
+          >
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Invoices</p>
@@ -181,35 +192,44 @@ export default function Dashboard() {
                 ></div>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Status Breakdown */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+          <Link
+            to="/invoices?status=paid"
+            className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-600 transition-all cursor-pointer"
+          >
             <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 p-1.5 rounded-full mb-2">
               <span className="material-symbols-outlined text-[20px] block">check_circle</span>
             </span>
             <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Paid</p>
             <p className="text-slate-900 dark:text-white text-xl font-bold">{paidCount}</p>
-          </div>
+          </Link>
 
-          <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+          <Link
+            to="/invoices?status=sent"
+            className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-amber-300 dark:hover:border-amber-600 transition-all cursor-pointer"
+          >
             <span className="text-amber-500 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded-full mb-2">
               <span className="material-symbols-outlined text-[20px] block">pending</span>
             </span>
             <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">Unpaid</p>
             <p className="text-slate-900 dark:text-white text-xl font-bold">{unpaidCount}</p>
-          </div>
+          </Link>
 
-          <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+          <Link
+            to="/invoices?status=overdue"
+            className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden hover:shadow-md hover:border-red-300 dark:hover:border-red-600 transition-all cursor-pointer"
+          >
             <div className="absolute inset-0 bg-red-50 dark:bg-red-900/10 opacity-50"></div>
             <span className="text-red-600 bg-white dark:bg-slate-800 p-1.5 rounded-full mb-2 z-10">
               <span className="material-symbols-outlined text-[20px] block">error</span>
             </span>
             <p className="text-red-700 dark:text-red-400 text-xs font-medium uppercase tracking-wide z-10">Overdue</p>
             <p className="text-red-900 dark:text-red-200 text-xl font-bold z-10">{overdueCount}</p>
-          </div>
+          </Link>
         </div>
 
         {/* Quick Actions */}

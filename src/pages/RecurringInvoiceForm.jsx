@@ -3,44 +3,40 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Sidebar from '../components/Sidebar'
 import ItemSelector from '../components/ItemSelector'
-import ClientSelector from '../components/ClientSelector'
-import PrintPreview from '../components/PrintPreview'
 import { getCurrencySymbol, getSupportedCurrencies } from '../utils/currency'
+import { getRecurringInvoice, createRecurringInvoice, updateRecurringInvoice } from '../api/recurringInvoices.js'
 
-export default function QuotationForm() {
+export default function RecurringInvoiceForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getQuotation, createQuotation, updateQuotation, sendQuotationEmail, fetchCategories, categories, fetchClients, clients, companySettings, fetchCompanySettings, loading } = useData()
-  const [quotation, setQuotation] = useState(null)
+  const { fetchClients, fetchCategories, clients, categories, companySettings, fetchCompanySettings, loading } = useData()
+  const [recurringInvoice, setRecurringInvoice] = useState(null)
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const [sendingEmail, setSendingEmail] = useState(false)
-  const [successMessage, setSuccessMessage] = useState(null)
 
   const [showItemSelector, setShowItemSelector] = useState(false)
-  const [showClientSelector, setShowClientSelector] = useState(false)
-  const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [formData, setFormData] = useState({
     clientId: '',
-    issueDate: new Date().toISOString().split('T')[0],
-    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    frequency: 'monthly',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    dueDateDays: 30,
+    autoBill: 'disabled',
     items: [],
     notes: '',
     terms: '',
-    status: 'draft',
     currency: '',
     exchangeRate: null,
   })
 
-  // Load categories, clients, and settings on mount
+  // Load clients, categories, and settings on mount
   useEffect(() => {
-    fetchCategories()
     fetchClients()
-    // Fetch settings if not already loaded
+    fetchCategories()
     if (!companySettings) {
       fetchCompanySettings()
     }
-  }, [fetchCategories, fetchClients, fetchCompanySettings, companySettings])
+  }, [fetchClients, fetchCategories, fetchCompanySettings, companySettings])
 
   // Set default currency from company settings
   useEffect(() => {
@@ -52,49 +48,56 @@ export default function QuotationForm() {
     }
   }, [companySettings, id])
 
-  // Load quotation data if editing
+  // Ensure clients are loaded
+  useEffect(() => {
+    if (clients.length === 0) {
+      fetchClients({ limit: 1000 })
+    }
+  }, [clients.length, fetchClients])
+
+  // Load recurring invoice data if editing
   useEffect(() => {
     if (id) {
-      const loadQuotation = async () => {
+      const loadRecurringInvoice = async () => {
         try {
-          setFormError(null)
-          const quotationData = await getQuotation(parseInt(id))
-          if (quotationData) {
-            setQuotation(quotationData)
+          const response = await getRecurringInvoice(parseInt(id))
+          if (response.data?.recurringInvoice) {
+            const ri = response.data.recurringInvoice
+            setRecurringInvoice(ri)
             setFormData({
-              clientId: quotationData.clientId || '',
-              issueDate: quotationData.issueDate || quotationData.date || new Date().toISOString().split('T')[0],
-              expiryDate: quotationData.expiryDate || quotationData.expiry || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              items: quotationData.items?.map(item => ({
+              clientId: ri.clientId || ri.client?.id || '',
+              frequency: ri.frequency || 'monthly',
+              startDate: ri.startDate || new Date().toISOString().split('T')[0],
+              endDate: ri.endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              dueDateDays: ri.dueDateDays || 30,
+              autoBill: ri.autoBill || 'disabled',
+              items: ri.items?.map(item => ({
                 itemId: item.itemId,
                 name: item.name,
                 description: item.description || '',
-                quantity: parseFloat(item.quantity) || 1,
-                price: parseFloat(item.price) || 0,
-                discountPercent: parseFloat(item.discountPercent || item.discount || 0),
-                taxPercent: parseFloat(item.taxPercent || item.tax || 0),
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                discountPercent: item.discountPercent || 0,
+                taxPercent: item.taxPercent || 0,
                 categoryId: item.categoryId,
+                uomCode: item.uomCode || 'PC',
+                uomId: item.uomId,
               })) || [],
-              notes: quotationData.notes || '',
-              terms: quotationData.terms || '',
-              status: quotationData.status || 'draft',
-              currency: quotationData.currency || companySettings?.currency || 'MVR',
-              exchangeRate: quotationData.exchangeRate || null,
+              notes: ri.notes || '',
+              terms: ri.terms || '',
+              currency: ri.currency || companySettings?.currency || 'MVR',
+              exchangeRate: ri.exchangeRate || null,
             })
-          } else {
-            setFormError('Quotation not found')
           }
         } catch (err) {
-          console.error('Error loading quotation:', err)
-          setFormError(err.response?.data?.error?.message || 'Failed to load quotation data')
+          setFormError('Failed to load recurring invoice data')
         }
       }
-      loadQuotation()
+      loadRecurringInvoice()
     }
-  }, [id, getQuotation])
+  }, [id, companySettings])
 
   const client = clients.find(c => c.id === formData.clientId)
-  const number = quotation?.number || ''
 
   const getCategoryColor = (categoryId) => {
     const category = categories.find(c => c.id === categoryId)
@@ -107,24 +110,16 @@ export default function QuotationForm() {
   const showExchangeRate = formData.currency && formData.currency !== baseCurrency
 
   const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity || 0)
-      const price = parseFloat(item.price || 0)
-      return sum + (quantity * price)
-    }, 0)
+    const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * (parseFloat(item.price) || 0)), 0)
     const discount = formData.items.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity || 0)
-      const price = parseFloat(item.price || 0)
-      const itemDiscount = parseFloat(item.discountPercent || item.discount || 0)
-      return sum + (quantity * price * itemDiscount / 100)
+      const itemDiscount = item.discountPercent || item.discount || 0
+      return sum + (item.quantity * (parseFloat(item.price) || 0) * itemDiscount / 100)
     }, 0)
     const afterDiscount = subtotal - discount
     const tax = formData.items.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity || 0)
-      const price = parseFloat(item.price || 0)
-      const itemDiscount = parseFloat(item.discountPercent || item.discount || 0)
-      const itemTax = parseFloat(item.taxPercent || item.tax || 0)
-      const itemTotal = quantity * price * (1 - itemDiscount / 100)
+      const itemDiscount = item.discountPercent || item.discount || 0
+      const itemTax = item.taxPercent || item.tax || 0
+      const itemTotal = item.quantity * (parseFloat(item.price) || 0) * (1 - itemDiscount / 100)
       return sum + (itemTotal * itemTax / 100)
     }, 0)
     const total = afterDiscount + tax
@@ -139,25 +134,24 @@ export default function QuotationForm() {
       name: item.name,
       description: item.description || '',
       quantity: 1,
-      price: parseFloat(item.rate || item.price || 0),
+      price: 0,
       discountPercent: 0,
       taxPercent: item.taxPercent !== undefined ? item.taxPercent : (item.tax !== undefined ? item.tax : 0),
       categoryId: item.categoryId,
+      uomCode: item.uomCode || 'PC',
+      uomId: item.uomId,
     }
     setFormData({ ...formData, items: [...formData.items, newItem] })
   }
 
   const handleUpdateItem = (index, field, value) => {
     const newItems = [...formData.items]
-    const numValue = parseFloat(value) || 0
     if (field === 'discount' || field === 'discountPercent') {
-      newItems[index] = { ...newItems[index], discountPercent: numValue }
+      newItems[index] = { ...newItems[index], discountPercent: parseFloat(value) || 0 }
     } else if (field === 'tax' || field === 'taxPercent') {
-      newItems[index] = { ...newItems[index], taxPercent: numValue }
-    } else if (field === 'quantity' || field === 'price') {
-      newItems[index] = { ...newItems[index], [field]: numValue }
+      newItems[index] = { ...newItems[index], taxPercent: parseFloat(value) || 0 }
     } else {
-      newItems[index] = { ...newItems[index], [field]: value }
+      newItems[index] = { ...newItems[index], [field]: parseFloat(value) || 0 }
     }
     setFormData({ ...formData, items: newItems })
   }
@@ -166,9 +160,6 @@ export default function QuotationForm() {
     setFormData({ ...formData, items: formData.items.filter((_, i) => i !== index) })
   }
 
-  const handleSelectClient = (client) => {
-    setFormData({ ...formData, clientId: client.id })
-  }
 
   const getAvatarColor = (name) => {
     const colors = [
@@ -181,9 +172,8 @@ export default function QuotationForm() {
     return colors[index]
   }
 
-  const handleSave = async (shouldSendEmail = false) => {
+  const handleSave = async () => {
     setFormError(null)
-    setSuccessMessage(null)
     
     if (!formData.clientId) {
       setFormError('Please select a client')
@@ -198,6 +188,15 @@ export default function QuotationForm() {
       return
     }
 
+    // Validate all items have prices
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i]
+      if (!item.price || item.price <= 0) {
+        setFormError(`Item ${i + 1} (${item.name}): Price is required and must be > 0`)
+        return
+      }
+    }
+
     // Validate exchange rate if currency is not base currency
     if (formData.currency !== baseCurrency) {
       if (!formData.exchangeRate || formData.exchangeRate <= 0) {
@@ -205,66 +204,39 @@ export default function QuotationForm() {
         return
       }
     }
-
-    // Check if client has email when sending
-    if (shouldSendEmail && client && !client.email) {
-      setFormError('Client must have an email address to send quotation')
-      return
-    }
-
+    
     setSubmitting(true)
-    const data = {
-      clientId: parseInt(formData.clientId),
-      issueDate: formData.issueDate,
-      expiryDate: formData.expiryDate,
-      items: formData.items.map(item => ({
-        itemId: item.itemId,
-        name: item.name,
-        description: item.description || '',
-        quantity: item.quantity,
-        price: item.price,
-        discountPercent: item.discountPercent || 0,
-        taxPercent: item.taxPercent || 0,
-      })),
-      notes: formData.notes,
-      terms: formData.terms,
-      status: shouldSendEmail ? 'sent' : formData.status,
-      currency: formData.currency,
-      exchangeRate: formData.currency !== baseCurrency ? formData.exchangeRate : null,
-    }
-
     try {
-      let savedQuotation
+      const data = {
+        clientId: parseInt(formData.clientId),
+        frequency: formData.frequency,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        dueDateDays: parseInt(formData.dueDateDays),
+        autoBill: formData.autoBill,
+        items: formData.items.map(item => ({
+          itemId: item.itemId,
+          name: item.name,
+          description: item.description || '',
+          quantity: parseFloat(item.quantity) || 1,
+          price: parseFloat(item.price) || 0,
+          discountPercent: parseFloat(item.discountPercent || 0),
+          taxPercent: parseFloat(item.taxPercent || 0),
+        })),
+        notes: formData.notes,
+        terms: formData.terms,
+        currency: formData.currency,
+        exchangeRate: formData.currency !== baseCurrency ? formData.exchangeRate : null,
+      }
+      
       if (id) {
-        savedQuotation = await updateQuotation(parseInt(id), data)
+        await updateRecurringInvoice(parseInt(id), data)
       } else {
-        savedQuotation = await createQuotation(data)
+        await createRecurringInvoice(data)
       }
-
-      // If we should send email, do it now
-      if (shouldSendEmail && savedQuotation) {
-        setSendingEmail(true)
-        try {
-          await sendQuotationEmail(savedQuotation.id)
-          setSuccessMessage(`Quotation ${savedQuotation.number || savedQuotation.quotationNumber || 'has been'} sent successfully to ${client?.email || 'the client'}`)
-          // Navigate after a short delay to show success message
-          setTimeout(() => {
-            navigate('/quotations')
-          }, 2000)
-        } catch (emailErr) {
-          console.error('Email send error:', emailErr)
-          const errorMsg = emailErr.response?.data?.error?.message || emailErr.message || 'Failed to send email. Quotation was saved successfully.'
-          setFormError(errorMsg)
-          // Don't navigate if email failed, let user see the error
-        } finally {
-          setSendingEmail(false)
-        }
-      } else {
-        // Just save, no email
-        navigate('/quotations')
-      }
+      navigate('/recurring-invoices')
     } catch (err) {
-      setFormError(err.response?.data?.error?.message || 'Failed to save quotation')
+      setFormError(err.response?.data?.error?.message || 'Failed to save recurring invoice')
     } finally {
       setSubmitting(false)
     }
@@ -278,43 +250,28 @@ export default function QuotationForm() {
         {/* Desktop Header */}
         <header className="hidden lg:flex items-center justify-between px-8 py-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
           <div className="flex items-center gap-4">
-            <Link to="/quotations" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <Link to="/recurring-invoices" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
               <span className="material-symbols-outlined text-slate-600 dark:text-slate-400">arrow_back</span>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{id ? 'Edit Quotation' : 'New Quotation'}</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{number}</p>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{id ? 'Edit Recurring Invoice' : 'New Recurring Invoice'}</h1>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => setShowPrintPreview(true)}
-              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[20px]">visibility</span>
-              Preview
-            </button>
-            <button 
-              onClick={() => setShowPrintPreview(true)}
-              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[20px]">download</span>
-              PDF
-            </button>
-            <button 
-              onClick={() => handleSave(true)} 
-              disabled={submitting || sendingEmail}
+              onClick={handleSave} 
+              disabled={submitting || loading.invoice}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {(submitting || sendingEmail) ? (
+              {submitting ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  {sendingEmail ? 'Sending...' : 'Saving...'}
+                  Saving...
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-[20px]">send</span>
-                  Send Quotation
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save
                 </>
               )}
             </button>
@@ -323,85 +280,106 @@ export default function QuotationForm() {
 
         {/* Mobile Header */}
         <div className="lg:hidden sticky top-0 z-20 flex items-center bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 justify-between border-b border-gray-200 dark:border-gray-800">
-          <Link to="/quotations" className="text-gray-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+          <Link to="/recurring-invoices" className="text-gray-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
             <span className="material-symbols-outlined">close</span>
           </Link>
-          <h2 className="text-gray-900 dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">{id ? 'Edit Quotation' : 'New Quotation'}</h2>
+          <h2 className="text-gray-900 dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">
+            {id ? 'Edit Recurring Invoice' : 'New Recurring Invoice'}
+          </h2>
           <button onClick={handleSave} className="flex items-center justify-end px-2">
             <p className="text-primary text-base font-bold leading-normal tracking-wide shrink-0">Save</p>
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 pt-4 pb-4 px-4 lg:pt-8 lg:pb-8 lg:pl-8 lg:pr-0">
+        <div className="flex-1 p-4 lg:px-8 lg:py-8">
           {formError && (
-            <div className="max-w-6xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+            <div className="max-w-[1600px] mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
               <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
             </div>
           )}
-          {successMessage && (
-            <div className="max-w-6xl mx-auto mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
-              <p className="text-green-800 dark:text-green-200 text-sm flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg">check_circle</span>
-                {successMessage}
-              </p>
-            </div>
-          )}
-          {id && loading.quotation && !quotation && !formError && (
-            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
+          {id && loading.invoice && !recurringInvoice && (
+            <div className="max-w-[1600px] mx-auto flex items-center justify-center py-12">
               <div className="text-center">
                 <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
-                <p className="text-slate-500 dark:text-slate-400">Loading quotation data...</p>
+                <p className="text-slate-500 dark:text-slate-400">Loading recurring invoice data...</p>
               </div>
             </div>
           )}
-          {id && !loading.quotation && !quotation && (
-            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
-              <div className="text-center">
-                <span className="material-symbols-outlined text-6xl text-red-500 mb-4">error</span>
-                <p className="text-slate-900 dark:text-white text-lg mb-2">Failed to Load Quotation</p>
-                <p className="text-slate-500 dark:text-slate-400 mb-4">{formError || 'Quotation not found or could not be loaded'}</p>
-                <Link to="/quotations" className="inline-block text-primary hover:underline">
-                  Back to Quotations
-                </Link>
-              </div>
-            </div>
-          )}
-          {(!id || quotation) && (
-          <div className="w-full lg:mr-8">
+          {(!id || recurringInvoice) && (
+          <div className="max-w-[1600px] mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Left Column - Main Form */}
               <div className="lg:col-span-2 space-y-6">
-                {/* Document Info */}
+                {/* Recurring Invoice Details */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 hidden lg:block">Document Details</h3>
-                  <div className="flex items-center justify-between mb-4 lg:mb-6">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quotation No.</span>
-                      <span className="text-xl font-bold text-gray-900 dark:text-white font-mono">{number}</span>
-                    </div>
-                    <div className="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wide">
-                      Draft
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 hidden lg:block">Recurring Invoice Details</h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Issue Date</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Frequency</span>
+                      <select
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                        value={formData.frequency}
+                        onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                        required
+                      >
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Every 3 Months</option>
+                        <option value="annually">Annually</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Due Date (Payment Terms)</span>
+                      <select
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                        value={formData.dueDateDays}
+                        onChange={(e) => setFormData({ ...formData, dueDateDays: parseInt(e.target.value) })}
+                        required
+                      >
+                        {Array.from({ length: 30 }, (_, i) => i + 1).map(day => (
+                          <option key={day} value={day}>Day {day}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</span>
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.issueDate ? (formData.issueDate.includes('T') ? formData.issueDate.split('T')[0] : formData.issueDate) : ''}
-                        onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        required
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">End Date</span>
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.expiryDate ? (formData.expiryDate.includes('T') ? formData.expiryDate.split('T')[0] : formData.expiryDate) : ''}
-                        onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                        required
                       />
+                    </label>
+                    <label className="flex flex-col gap-1.5 lg:col-span-2">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Auto Bill</span>
+                      <select
+                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                        value={formData.autoBill}
+                        onChange={(e) => setFormData({ ...formData, autoBill: e.target.value })}
+                        required
+                      >
+                        <option value="disabled">Disabled</option>
+                        <option value="enabled">Enabled</option>
+                        <option value="opt_in">Opt-In</option>
+                      </select>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {formData.autoBill === 'disabled' && 'Auto invoice will not be created'}
+                        {formData.autoBill === 'enabled' && 'Auto invoice will be created and sent'}
+                        {formData.autoBill === 'opt_in' && 'Auto invoice will be created as draft for review'}
+                      </span>
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-4 mt-4">
@@ -409,7 +387,7 @@ export default function QuotationForm() {
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Currency</span>
                       <select
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
-                        value={formData.currency}
+                        value={formData.currency || companySettings?.currency || 'MVR'}
                         onChange={(e) => {
                           const newCurrency = e.target.value
                           setFormData({ 
@@ -420,13 +398,15 @@ export default function QuotationForm() {
                         }}
                         required
                       >
-                        <option value="">Select Currency</option>
                         {getSupportedCurrencies().map(curr => (
                           <option key={curr.code} value={curr.code}>
                             {curr.code} - {curr.symbol} {curr.name}
                           </option>
                         ))}
                       </select>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Default: {companySettings?.currency || 'MVR'}
+                      </span>
                     </label>
                     {showExchangeRate && (
                       <label className="flex flex-col gap-1.5">
@@ -443,9 +423,6 @@ export default function QuotationForm() {
                           placeholder="0.0000"
                           required
                         />
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Enter the exchange rate used for this document
-                        </span>
                       </label>
                     )}
                   </div>
@@ -454,30 +431,25 @@ export default function QuotationForm() {
                 {/* Client Selection */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                   <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white mb-3 lg:mb-4">Client Details</h3>
-                  <button 
-                    onClick={() => setShowClientSelector(true)}
-                    className="w-full flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 p-3 rounded-lg -mx-3 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`size-10 lg:size-12 rounded-full bg-gradient-to-br ${client ? getAvatarColor(client.name) : 'from-slate-300 to-slate-400'} flex items-center justify-center text-white font-bold text-lg`}>
-                        {client?.name?.charAt(0) || <span className="material-symbols-outlined">person_add</span>}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm lg:text-base font-semibold text-gray-900 dark:text-white">{client?.name || 'Select Client'}</span>
-                        <span className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">{client?.email || 'Click to select a client'}</span>
-                        {client?.phone && (
-                          <span className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[12px]">phone</span>
-                            {client.phone}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">chevron_right</span>
-                  </button>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Client</span>
+                    <select
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
+                      value={formData.clientId}
+                      onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+                      required
+                    >
+                      <option value="">Select a client</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.email ? `(${c.email})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
 
-                {/* Line Items */}
+                {/* Line Items - Same as InvoiceForm */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-base lg:text-lg font-bold text-gray-900 dark:text-white">Line Items</h3>
@@ -524,12 +496,15 @@ export default function QuotationForm() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-center">
-                                  <input 
-                                    type="number" 
-                                    value={item.quantity} 
-                                    onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
-                                    className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
-                                  />
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <input 
+                                      type="number" 
+                                      value={item.quantity} 
+                                      onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
+                                      className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                    />
+                                    <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input 
@@ -556,7 +531,7 @@ export default function QuotationForm() {
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  {currencySymbol}{(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * (1 - parseFloat(item.discountPercent || item.discount || 0) / 100) * (1 + parseFloat(item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
+                                  {currencySymbol}{((item.quantity * (parseFloat(item.price) || 0) * (1 - (item.discountPercent || item.discount || 0) / 100)) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <button 
@@ -589,12 +564,12 @@ export default function QuotationForm() {
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</p>
                                 </div>
                               </div>
-                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * (1 - parseFloat(item.discountPercent || item.discount || 0) / 100) * (1 + parseFloat(item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
+                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(item.quantity * (parseFloat(item.price) || 0) * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
-                                <span>x {currencySymbol}{parseFloat(item.price || 0).toFixed(2)}</span>
+                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity} <span className="text-gray-400">{item.uomCode || 'PC'}</span></span>
+                                <span>x {currencySymbol}{(parseFloat(item.price) || 0).toFixed(2)}</span>
                               </div>
                               <div className="flex gap-2">
                                 <button 
@@ -679,29 +654,9 @@ export default function QuotationForm() {
                   {/* Desktop Actions */}
                   <div className="hidden lg:block space-y-3">
                     <button 
-                      onClick={() => handleSave(true)}
-                      disabled={submitting || sendingEmail}
+                      onClick={handleSave} 
+                      disabled={submitting || loading.invoice}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {(submitting || sendingEmail) ? (
-                        <>
-                          <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                          {sendingEmail ? 'Sending...' : 'Saving...'}
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined text-[20px]">send</span>
-                          Send Quotation
-                        </>
-                      )}
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setFormData({ ...formData, status: 'draft' })
-                        handleSave()
-                      }}
-                      disabled={submitting}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-3.5 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <>
@@ -711,7 +666,7 @@ export default function QuotationForm() {
                       ) : (
                         <>
                           <span className="material-symbols-outlined text-[20px]">save</span>
-                          Save as Draft
+                          Save Recurring Invoice
                         </>
                       )}
                     </button>
@@ -727,26 +682,19 @@ export default function QuotationForm() {
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/80 dark:bg-slate-800/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           <div className="flex gap-3 max-w-lg mx-auto">
             <button 
-              onClick={() => setShowPrintPreview(true)}
-              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-3 text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-95 transition-transform"
-            >
-              <span className="material-symbols-outlined text-[20px]">visibility</span>
-              Preview
-            </button>
-            <button 
-              onClick={() => handleSave(true)}
-              disabled={submitting || sendingEmail}
+              onClick={handleSave} 
+              disabled={submitting || loading.invoice}
               className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {(submitting || sendingEmail) ? (
+              {submitting ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  {sendingEmail ? 'Sending...' : 'Saving...'}
+                  Saving...
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-[20px]">send</span>
-                  Send Quotation
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Save
                 </>
               )}
             </button>
@@ -762,34 +710,7 @@ export default function QuotationForm() {
         />
       )}
 
-      {/* Client Selector Modal */}
-      {showClientSelector && (
-        <ClientSelector
-          onSelect={handleSelectClient}
-          onClose={() => setShowClientSelector(false)}
-          selectedClientId={formData.clientId}
-        />
-      )}
-
-      {/* Print Preview Modal */}
-      {showPrintPreview && (
-        <PrintPreview
-          type="quotation"
-          data={{
-            ...formData,
-            id: id ? parseInt(id) : null,
-            number: quotation?.number || number,
-            status: formData.status,
-            amount: total,
-            date: formData.issueDate,
-            expiry: formData.expiryDate,
-            currency: formData.currency,
-            exchangeRate: formData.exchangeRate,
-          }}
-          client={client}
-          onClose={() => setShowPrintPreview(false)}
-        />
-      )}
     </div>
   )
 }
+

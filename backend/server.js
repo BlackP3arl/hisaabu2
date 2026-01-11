@@ -1,6 +1,7 @@
 import app from './src/app.js';
 import { query } from './src/config/database.js';
 import { closePool } from './src/config/database.js';
+import { startRecurringInvoiceJob } from './src/jobs/recurringInvoiceJob.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -27,6 +28,9 @@ const startServer = async () => {
       console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 API Base URL: http://localhost:${PORT}/api/v1`);
     });
+
+    // Start recurring invoice generation job
+    startRecurringInvoiceJob();
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
