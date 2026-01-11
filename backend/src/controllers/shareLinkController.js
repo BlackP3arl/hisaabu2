@@ -632,6 +632,16 @@ export const publicAcknowledge = async (req, res) => {
       [token]
     );
 
+    // If this is an invoice, update its status to 'viewed'
+    if (shareLink.document_type === 'invoice') {
+      await query(
+        `UPDATE invoices
+         SET status = 'viewed', updated_at = NOW()
+         WHERE id = $1 AND status IN ('draft', 'sent')`,
+        [shareLink.document_id]
+      );
+    }
+
     return successResponse(
       res,
       null,

@@ -62,6 +62,7 @@ export default function InvoicesList() {
       draft: 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300',
       partial: 'bg-amber-50 dark:bg-amber-900/30 border-amber-100 dark:border-amber-800 text-amber-600 dark:text-amber-400',
       sent: 'bg-sky-50 dark:bg-sky-900/30 border-sky-100 dark:border-sky-800 text-sky-600 dark:text-sky-400',
+      viewed: 'bg-purple-50 dark:bg-purple-900/30 border-purple-100 dark:border-purple-800 text-purple-600 dark:text-purple-400',
     }
     return badges[status] || badges.draft
   }
@@ -73,12 +74,21 @@ export default function InvoicesList() {
       draft: 'bg-slate-400',
       partial: 'bg-amber-500',
       sent: 'bg-sky-500',
+      viewed: 'bg-purple-500',
     }
     return colors[status] || 'bg-slate-400'
   }
 
   const getStatusText = (status) => {
-    return status === 'partial' ? 'Partial' : status.toUpperCase()
+    const statusTexts = {
+      partial: 'Partial',
+      viewed: 'Viewed',
+      draft: 'Draft',
+      sent: 'Sent',
+      paid: 'Paid',
+      overdue: 'Overdue'
+    }
+    return statusTexts[status] || status.toUpperCase()
   }
 
 
@@ -130,7 +140,7 @@ export default function InvoicesList() {
           </div>
 
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            {['all', 'draft', 'sent', 'paid', 'partial', 'overdue'].map((f) => (
+            {['all', 'draft', 'sent', 'viewed', 'paid', 'partial', 'overdue'].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
