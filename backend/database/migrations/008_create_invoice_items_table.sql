@@ -38,3 +38,4 @@ COMMENT ON COLUMN invoice_items.name IS 'Item name (snapshot at time of creation
 COMMENT ON COLUMN invoice_items.line_total IS 'Calculated line total: (quantity * price * (1 - discount/100)) * (1 + tax/100)';
 
 
+

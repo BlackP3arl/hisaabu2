@@ -328,3 +328,4 @@ The backend now has all essential features for the MVP:
 **Ready for frontend integration!** 🚀
 
 
+

@@ -6,15 +6,16 @@ import ItemSelector from '../components/ItemSelector'
 import ClientSelector from '../components/ClientSelector'
 import PrintPreview from '../components/PrintPreview'
 import { getCurrencySymbol, getSupportedCurrencies } from '../utils/currency'
-import apiClient from '../api/client'
 
 export default function QuotationForm() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getQuotation, createQuotation, updateQuotation, fetchCategories, categories, fetchClients, clients, companySettings, fetchCompanySettings, loading } = useData()
+  const { getQuotation, createQuotation, updateQuotation, sendQuotationEmail, fetchCategories, categories, fetchClients, clients, companySettings, fetchCompanySettings, loading } = useData()
   const [quotation, setQuotation] = useState(null)
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [successMessage, setSuccessMessage] = useState(null)
 
   const [showItemSelector, setShowItemSelector] = useState(false)
   const [showClientSelector, setShowClientSelector] = useState(false)
@@ -22,7 +23,7 @@ export default function QuotationForm() {
   const [formData, setFormData] = useState({
     clientId: '',
     issueDate: new Date().toISOString().split('T')[0],
-    expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     items: [],
     notes: '',
     terms: '',
@@ -41,17 +42,12 @@ export default function QuotationForm() {
     }
   }, [fetchCategories, fetchClients, fetchCompanySettings, companySettings])
 
-  // Set default currency from company settings and default exchange rate
+  // Set default currency from company settings
   useEffect(() => {
     if (companySettings && !formData.currency && !id) {
-      const defaultCurrency = companySettings.currency || 'MVR'
-      const baseCurrency = companySettings.baseCurrency || 'USD'
-      const needsExchangeRate = defaultCurrency !== baseCurrency
-      
       setFormData(prev => ({
         ...prev,
-        currency: defaultCurrency,
-        exchangeRate: needsExchangeRate && !prev.exchangeRate ? 15.42 : prev.exchangeRate,
+        currency: companySettings.currency || 'MVR',
       }))
     }
   }, [companySettings, id])
@@ -61,6 +57,7 @@ export default function QuotationForm() {
     if (id) {
       const loadQuotation = async () => {
         try {
+          setFormError(null)
           const quotationData = await getQuotation(parseInt(id))
           if (quotationData) {
             setQuotation(quotationData)
@@ -77,8 +74,6 @@ export default function QuotationForm() {
                 discountPercent: parseFloat(item.discountPercent || item.discount || 0),
                 taxPercent: parseFloat(item.taxPercent || item.tax || 0),
                 categoryId: item.categoryId,
-                uomCode: item.uomCode || 'PC',
-                uomId: item.uomId,
               })) || [],
               notes: quotationData.notes || '',
               terms: quotationData.terms || '',
@@ -86,9 +81,12 @@ export default function QuotationForm() {
               currency: quotationData.currency || companySettings?.currency || 'MVR',
               exchangeRate: quotationData.exchangeRate || null,
             })
+          } else {
+            setFormError('Quotation not found')
           }
         } catch (err) {
-          setFormError('Failed to load quotation data')
+          console.error('Error loading quotation:', err)
+          setFormError(err.response?.data?.error?.message || 'Failed to load quotation data')
         }
       }
       loadQuotation()
@@ -110,23 +108,23 @@ export default function QuotationForm() {
 
   const calculateTotals = () => {
     const subtotal = formData.items.reduce((sum, item) => {
-      const qty = parseFloat(item.quantity) || 1
-      const price = parseFloat(item.price) || 0
-      return sum + (qty * price)
+      const quantity = parseFloat(item.quantity || 0)
+      const price = parseFloat(item.price || 0)
+      return sum + (quantity * price)
     }, 0)
     const discount = formData.items.reduce((sum, item) => {
-      const qty = parseFloat(item.quantity) || 1
-      const price = parseFloat(item.price) || 0
+      const quantity = parseFloat(item.quantity || 0)
+      const price = parseFloat(item.price || 0)
       const itemDiscount = parseFloat(item.discountPercent || item.discount || 0)
-      return sum + (qty * price * itemDiscount / 100)
+      return sum + (quantity * price * itemDiscount / 100)
     }, 0)
     const afterDiscount = subtotal - discount
     const tax = formData.items.reduce((sum, item) => {
-      const qty = parseFloat(item.quantity) || 1
-      const price = parseFloat(item.price) || 0
+      const quantity = parseFloat(item.quantity || 0)
+      const price = parseFloat(item.price || 0)
       const itemDiscount = parseFloat(item.discountPercent || item.discount || 0)
       const itemTax = parseFloat(item.taxPercent || item.tax || 0)
-      const itemTotal = qty * price * (1 - itemDiscount / 100)
+      const itemTotal = quantity * price * (1 - itemDiscount / 100)
       return sum + (itemTotal * itemTax / 100)
     }, 0)
     const total = afterDiscount + tax
@@ -136,32 +134,28 @@ export default function QuotationForm() {
   const { subtotal, discount, tax, total } = calculateTotals()
 
   const handleAddItem = (item) => {
-    // Items no longer have default prices - price must be entered manually in document currency
     const newItem = {
       itemId: item.id,
       name: item.name,
       description: item.description || '',
       quantity: 1,
-      price: 0, // Price must be entered manually - no default from item
+      price: parseFloat(item.rate || item.price || 0),
       discountPercent: 0,
       taxPercent: item.taxPercent !== undefined ? item.taxPercent : (item.tax !== undefined ? item.tax : 0),
       categoryId: item.categoryId,
-      uomCode: item.uomCode || 'PC',
-      uomId: item.uomId,
     }
     setFormData({ ...formData, items: [...formData.items, newItem] })
   }
 
   const handleUpdateItem = (index, field, value) => {
     const newItems = [...formData.items]
+    const numValue = parseFloat(value) || 0
     if (field === 'discount' || field === 'discountPercent') {
-      newItems[index] = { ...newItems[index], discountPercent: parseFloat(value) || 0 }
+      newItems[index] = { ...newItems[index], discountPercent: numValue }
     } else if (field === 'tax' || field === 'taxPercent') {
-      newItems[index] = { ...newItems[index], taxPercent: parseFloat(value) || 0 }
-    } else if (field === 'price') {
-      newItems[index] = { ...newItems[index], price: parseFloat(value) || 0 }
-    } else if (field === 'quantity') {
-      newItems[index] = { ...newItems[index], quantity: parseFloat(value) || 1 }
+      newItems[index] = { ...newItems[index], taxPercent: numValue }
+    } else if (field === 'quantity' || field === 'price') {
+      newItems[index] = { ...newItems[index], [field]: numValue }
     } else {
       newItems[index] = { ...newItems[index], [field]: value }
     }
@@ -187,8 +181,10 @@ export default function QuotationForm() {
     return colors[index]
   }
 
-  const handleSave = async (sendQuotation = false) => {
+  const handleSave = async (shouldSendEmail = false) => {
     setFormError(null)
+    setSuccessMessage(null)
+    
     if (!formData.clientId) {
       setFormError('Please select a client')
       return
@@ -202,21 +198,18 @@ export default function QuotationForm() {
       return
     }
 
-    // Validate all items have prices
-    for (let i = 0; i < formData.items.length; i++) {
-      const item = formData.items[i]
-      if (!item.price || item.price <= 0) {
-        setFormError(`Item ${i + 1} (${item.name}): Price is required and must be > 0`)
+    // Validate exchange rate if currency is not base currency
+    if (formData.currency !== baseCurrency) {
+      if (!formData.exchangeRate || formData.exchangeRate <= 0) {
+        setFormError('Exchange rate is required when currency differs from base currency')
         return
       }
     }
 
-    // Validate exchange rate if currency is not base currency
-    if (formData.currency !== baseCurrency) {
-      if (!formData.exchangeRate || formData.exchangeRate < 0.001) {
-        setFormError('Exchange rate is required and must be at least 0.001 when currency differs from base currency')
-        return
-      }
+    // Check if client has email when sending
+    if (shouldSendEmail && client && !client.email) {
+      setFormError('Client must have an email address to send quotation')
+      return
     }
 
     setSubmitting(true)
@@ -228,43 +221,48 @@ export default function QuotationForm() {
         itemId: item.itemId,
         name: item.name,
         description: item.description || '',
-        quantity: parseFloat(item.quantity) || 1,
-        price: parseFloat(item.price) || 0,
-        discountPercent: parseFloat(item.discountPercent || 0),
-        taxPercent: parseFloat(item.taxPercent || 0),
-        uomCode: item.uomCode || 'PC',
-        uomId: item.uomId,
+        quantity: item.quantity,
+        price: item.price,
+        discountPercent: item.discountPercent || 0,
+        taxPercent: item.taxPercent || 0,
       })),
       notes: formData.notes,
       terms: formData.terms,
-      status: sendQuotation ? 'sent' : formData.status, // Set to 'sent' when sending quotation
+      status: shouldSendEmail ? 'sent' : formData.status,
       currency: formData.currency,
       exchangeRate: formData.currency !== baseCurrency ? formData.exchangeRate : null,
     }
 
     try {
-      let quotationId
+      let savedQuotation
       if (id) {
-        await updateQuotation(parseInt(id), data)
-        quotationId = parseInt(id)
+        savedQuotation = await updateQuotation(parseInt(id), data)
       } else {
-        const result = await createQuotation(data)
-        quotationId = result.id
+        savedQuotation = await createQuotation(data)
       }
 
-      // If sending quotation, send email
-      if (sendQuotation && quotationId) {
+      // If we should send email, do it now
+      if (shouldSendEmail && savedQuotation) {
+        setSendingEmail(true)
         try {
-          await apiClient.post(`/quotations/${quotationId}/send-email`)
-          alert('Quotation sent successfully!')
+          await sendQuotationEmail(savedQuotation.id)
+          setSuccessMessage(`Quotation ${savedQuotation.number || savedQuotation.quotationNumber || 'has been'} sent successfully to ${client?.email || 'the client'}`)
+          // Navigate after a short delay to show success message
+          setTimeout(() => {
+            navigate('/quotations')
+          }, 2000)
         } catch (emailErr) {
-          console.error('Failed to send email:', emailErr)
-          // Still navigate even if email fails
-          alert('Quotation saved but email could not be sent. Please try sending it manually.')
+          console.error('Email send error:', emailErr)
+          const errorMsg = emailErr.response?.data?.error?.message || emailErr.message || 'Failed to send email. Quotation was saved successfully.'
+          setFormError(errorMsg)
+          // Don't navigate if email failed, let user see the error
+        } finally {
+          setSendingEmail(false)
         }
+      } else {
+        // Just save, no email
+        navigate('/quotations')
       }
-
-      navigate('/quotations')
     } catch (err) {
       setFormError(err.response?.data?.error?.message || 'Failed to save quotation')
     } finally {
@@ -305,13 +303,13 @@ export default function QuotationForm() {
             </button>
             <button 
               onClick={() => handleSave(true)} 
-              disabled={submitting}
+              disabled={submitting || sendingEmail}
               className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? (
+              {(submitting || sendingEmail) ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Sending...
+                  {sendingEmail ? 'Sending...' : 'Saving...'}
                 </>
               ) : (
                 <>
@@ -335,25 +333,45 @@ export default function QuotationForm() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-4 lg:px-8 lg:py-8">
+        <div className="flex-1 pt-4 pb-4 px-4 lg:pt-8 lg:pb-8 lg:pl-8 lg:pr-0">
           {formError && (
-            <div className="max-w-[1600px] mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+            <div className="max-w-6xl mx-auto mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
               <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
             </div>
           )}
+          {successMessage && (
+            <div className="max-w-6xl mx-auto mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+              <p className="text-green-800 dark:text-green-200 text-sm flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg">check_circle</span>
+                {successMessage}
+              </p>
+            </div>
+          )}
           {id && loading.quotation && !quotation && !formError && (
-            <div className="max-w-[1600px] mx-auto flex items-center justify-center py-12">
+            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
               <div className="text-center">
                 <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">sync</span>
                 <p className="text-slate-500 dark:text-slate-400">Loading quotation data...</p>
               </div>
             </div>
           )}
+          {id && !loading.quotation && !quotation && (
+            <div className="max-w-6xl mx-auto flex items-center justify-center py-12">
+              <div className="text-center">
+                <span className="material-symbols-outlined text-6xl text-red-500 mb-4">error</span>
+                <p className="text-slate-900 dark:text-white text-lg mb-2">Failed to Load Quotation</p>
+                <p className="text-slate-500 dark:text-slate-400 mb-4">{formError || 'Quotation not found or could not be loaded'}</p>
+                <Link to="/quotations" className="inline-block text-primary hover:underline">
+                  Back to Quotations
+                </Link>
+              </div>
+            </div>
+          )}
           {(!id || quotation) && (
-          <div className="max-w-[1600px] mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+          <div className="w-full lg:mr-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Left Column - Main Form */}
-              <div className="lg:col-span-8 space-y-6">
+              <div className="lg:col-span-2 space-y-6">
                 {/* Document Info */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 hidden lg:block">Document Details</h3>
@@ -372,7 +390,7 @@ export default function QuotationForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.issueDate}
+                        value={formData.issueDate ? (formData.issueDate.includes('T') ? formData.issueDate.split('T')[0] : formData.issueDate) : ''}
                         onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
                       />
                     </label>
@@ -381,7 +399,7 @@ export default function QuotationForm() {
                       <input
                         className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                         type="date"
-                        value={formData.expiryDate}
+                        value={formData.expiryDate ? (formData.expiryDate.includes('T') ? formData.expiryDate.split('T')[0] : formData.expiryDate) : ''}
                         onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
                       />
                     </label>
@@ -397,9 +415,7 @@ export default function QuotationForm() {
                           setFormData({ 
                             ...formData, 
                             currency: newCurrency,
-                            exchangeRate: newCurrency !== baseCurrency 
-                              ? (formData.exchangeRate || 15.42) 
-                              : null
+                            exchangeRate: newCurrency !== baseCurrency ? formData.exchangeRate : null
                           })
                         }}
                         required
@@ -415,16 +431,16 @@ export default function QuotationForm() {
                     {showExchangeRate && (
                       <label className="flex flex-col gap-1.5">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Exchange Rate (1 {baseCurrency} = ? {formData.currency})
+                          Exchange Rate (1 {formData.currency} = ? {baseCurrency})
                         </span>
                         <input
                           className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white text-sm focus:border-primary focus:ring-primary h-11 px-3"
                           type="number"
-                          step="0.001"
-                          min="0.001"
+                          step="0.0001"
+                          min="0.0001"
                           value={formData.exchangeRate || ''}
                           onChange={(e) => setFormData({ ...formData, exchangeRate: parseFloat(e.target.value) || null })}
-                          placeholder="0.000"
+                          placeholder="0.0000"
                           required
                         />
                         <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -487,7 +503,7 @@ export default function QuotationForm() {
                               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Disc %</th>
                               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-24">Tax %</th>
                               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28">Total</th>
-                              <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-16">Action</th>
+                              <th className="w-16"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -508,15 +524,12 @@ export default function QuotationForm() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-center">
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    <input 
-                                      type="number" 
-                                      value={item.quantity} 
-                                      onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
-                                      className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
-                                    />
-                                    <span className="text-xs text-slate-400">{item.uomCode || 'PC'}</span>
-                                  </div>
+                                  <input 
+                                    type="number" 
+                                    value={item.quantity} 
+                                    onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
+                                    className="w-16 text-center rounded border-slate-200 dark:border-slate-600 bg-transparent text-sm py-1" 
+                                  />
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input 
@@ -543,15 +556,14 @@ export default function QuotationForm() {
                                   />
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                                  {currencySymbol}{((parseFloat(item.quantity) || 1) * (parseFloat(item.price) || 0) * (1 - (parseFloat(item.discountPercent || item.discount || 0)) / 100) * (1 + (parseFloat(item.taxPercent || item.tax || 0)) / 100)).toFixed(2)}
+                                  {currencySymbol}{(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * (1 - parseFloat(item.discountPercent || item.discount || 0) / 100) * (1 + parseFloat(item.taxPercent || item.tax || 0) / 100)).toFixed(2)}
                                 </td>
-                                <td className="px-4 py-3 text-center">
+                                <td className="px-4 py-3">
                                   <button 
                                     onClick={() => handleRemoveItem(index)}
-                                    title="Remove item"
-                                    className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95"
+                                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded hover:bg-red-50 dark:hover:bg-red-900/20"
                                   >
-                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                    <span className="material-symbols-outlined text-[18px]">delete</span>
                                   </button>
                                 </td>
                               </tr>
@@ -577,18 +589,17 @@ export default function QuotationForm() {
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{item.description}</p>
                                 </div>
                               </div>
-                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(item.quantity * item.price * (1 - (item.discountPercent || item.discount || 0) / 100) * (1 + (item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
+                              <span className="font-bold text-gray-900 dark:text-white text-sm">{currencySymbol}{(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * (1 - parseFloat(item.discountPercent || item.discount || 0) / 100) * (1 + parseFloat(item.taxPercent || item.tax || 0) / 100)).toFixed(2)}</span>
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity} <span className="text-gray-400">{item.uomCode || 'PC'}</span></span>
-                                <span>x {currencySymbol}{(parseFloat(item.price) || 0).toFixed(2)}</span>
+                                <span className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">Qty: {item.quantity}</span>
+                                <span>x {currencySymbol}{parseFloat(item.price || 0).toFixed(2)}</span>
                               </div>
                               <div className="flex gap-2">
                                 <button 
                                   onClick={() => handleRemoveItem(index)}
-                                  title="Remove item"
-                                  className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95"
+                                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
                                 >
                                   <span className="material-symbols-outlined text-[20px]">delete</span>
                                 </button>
@@ -635,8 +646,8 @@ export default function QuotationForm() {
               </div>
 
               {/* Right Column - Summary */}
-              <div className="lg:col-span-4">
-                <div className="lg:sticky lg:top-28 space-y-6 lg:max-w-sm lg:mr-8">
+              <div className="lg:col-span-1">
+                <div className="lg:sticky lg:top-28 space-y-6">
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-5 lg:p-6 shadow-sm border border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Summary</h3>
                     <div className="space-y-3">
@@ -669,13 +680,13 @@ export default function QuotationForm() {
                   <div className="hidden lg:block space-y-3">
                     <button 
                       onClick={() => handleSave(true)}
-                      disabled={submitting}
+                      disabled={submitting || sendingEmail}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-white font-semibold shadow-lg shadow-primary/25 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {submitting ? (
+                      {(submitting || sendingEmail) ? (
                         <>
                           <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                          Sending...
+                          {sendingEmail ? 'Sending...' : 'Saving...'}
                         </>
                       ) : (
                         <>
@@ -724,13 +735,13 @@ export default function QuotationForm() {
             </button>
             <button 
               onClick={() => handleSave(true)}
-              disabled={submitting}
+              disabled={submitting || sendingEmail}
               className="flex-[2] flex items-center justify-center gap-2 rounded-lg bg-primary py-3 text-white font-semibold shadow-md shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? (
+              {(submitting || sendingEmail) ? (
                 <>
                   <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                  Sending...
+                  {sendingEmail ? 'Sending...' : 'Saving...'}
                 </>
               ) : (
                 <>

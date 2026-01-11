@@ -14,3 +14,4 @@ WHERE base_currency IS NULL;
 -- Add comment
 COMMENT ON COLUMN company_settings.base_currency IS 'Base currency for exchange rate calculations (ISO 4217 code, default: USD)';
 
+

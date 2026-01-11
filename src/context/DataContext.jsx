@@ -498,6 +498,25 @@ export function DataProvider({ children }) {
     }
   }, [])
 
+  const sendQuotationEmail = useCallback(async (id) => {
+    setLoadingState('quotation', true)
+    setError(null)
+    try {
+      const { data } = await apiClient.post(`/quotations/${id}/send-email`)
+      if (data.success) {
+        // Update quotation status to 'sent'
+        setQuotations(prev => prev.map(q => q.id === id ? { ...q, status: 'sent' } : q))
+        return data.data
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message)
+      throw err
+    } finally {
+      setLoadingState('quotation', false)
+    }
+  }, [])
+
   // ==================== INVOICES ====================
 
   const fetchInvoices = useCallback(async (params = {}) => {
@@ -942,6 +961,7 @@ export function DataProvider({ children }) {
       updateQuotation,
       deleteQuotation,
       convertQuotationToInvoice,
+      sendQuotationEmail,
       addQuotation, // Legacy
       // Invoices
       fetchInvoices,

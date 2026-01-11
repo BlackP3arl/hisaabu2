@@ -39,8 +39,20 @@ export default function SecureShare() {
 
   const handleAcknowledge = async () => {
     try {
-      await apiClient.post(`/public/share/${token}/acknowledge`)
-      alert('Document acknowledged successfully!')
+      setError('')
+      const { data } = await apiClient.post(`/public/share/${token}/acknowledge`)
+      if (data.success) {
+        // Reload document to get updated status
+        await loadDocument()
+        // Show success message
+        const successMsg = window.document.createElement('div')
+        successMsg.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-6 py-3 rounded-xl shadow-lg z-50 flex items-center gap-2'
+        successMsg.innerHTML = '<span class="material-symbols-outlined">check_circle</span><span>Invoice acknowledged successfully!</span>'
+        window.document.body.appendChild(successMsg)
+        setTimeout(() => {
+          window.document.body.removeChild(successMsg)
+        }, 3000)
+      }
     } catch (err) {
       const errorMessage = handleApiError(err)
       setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to acknowledge')
@@ -94,12 +106,12 @@ export default function SecureShare() {
         // Reload document to get updated status
         await loadDocument()
         // Show success message
-        const successMsg = document.createElement('div')
+        const successMsg = window.document.createElement('div')
         successMsg.className = 'fixed top-4 right-4 bg-emerald-500 text-white px-6 py-3 rounded-xl shadow-lg z-50 flex items-center gap-2'
         successMsg.innerHTML = '<span class="material-symbols-outlined">check_circle</span><span>Quotation accepted successfully!</span>'
-        document.body.appendChild(successMsg)
+        window.document.body.appendChild(successMsg)
         setTimeout(() => {
-          document.body.removeChild(successMsg)
+          window.document.body.removeChild(successMsg)
         }, 3000)
       }
     } catch (err) {
@@ -119,12 +131,12 @@ export default function SecureShare() {
         // Reload document to get updated status
         await loadDocument()
         // Show success message
-        const successMsg = document.createElement('div')
+        const successMsg = window.document.createElement('div')
         successMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-xl shadow-lg z-50 flex items-center gap-2'
         successMsg.innerHTML = '<span class="material-symbols-outlined">cancel</span><span>Quotation rejected.</span>'
-        document.body.appendChild(successMsg)
+        window.document.body.appendChild(successMsg)
         setTimeout(() => {
-          document.body.removeChild(successMsg)
+          window.document.body.removeChild(successMsg)
         }, 3000)
       }
     } catch (err) {
@@ -135,20 +147,20 @@ export default function SecureShare() {
 
   const handleDownloadPdf = async () => {
     try {
-      const endpoint = document?.documentType === 'quotation' 
-        ? `/quotations/${document.documentId}/pdf`
-        : `/invoices/${document.documentId}/pdf`
+      // Use public PDF endpoint since we're accessing via share link
+      const endpoint = `/public/share/${token}/pdf`
       
       const response = await apiClient.get(endpoint, {
         responseType: 'blob'
       })
       const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
+      const link = window.document.createElement('a')
       link.href = url
       link.setAttribute('download', `${document?.documentType || 'document'}-${document?.number || token}.pdf`)
-      document.body.appendChild(link)
+      window.document.body.appendChild(link)
       link.click()
       link.remove()
+      window.URL.revokeObjectURL(url)
     } catch (err) {
       const errorMessage = handleApiError(err)
       setError(typeof errorMessage === 'string' ? errorMessage : errorMessage.message || 'Failed to download PDF')
@@ -159,6 +171,7 @@ export default function SecureShare() {
     const styles = {
       paid: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
       accepted: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+      acknowledged: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
       rejected: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400',
       overdue: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400',
       expired: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400',
@@ -384,7 +397,7 @@ export default function SecureShare() {
 
             {/* Totals */}
             <div className="flex justify-end mb-8">
-              <div className="w-full sm:w-64 bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 space-y-2">
+              <div className="w-full sm:w-80 md:w-96 bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 space-y-2">
                 {document.subtotal !== undefined && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600 dark:text-slate-300">Subtotal</span>
@@ -403,11 +416,11 @@ export default function SecureShare() {
                     <span className="text-slate-900 dark:text-white">{formatCurrency(document.taxTotal || 0, documentCurrency)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-600">
-                  <span className="font-bold text-slate-900 dark:text-white">Total Amount</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-primary">{formatCurrency(document.totalAmount || document.amount || 0, documentCurrency)}</span>
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-600 gap-2">
+                  <span className="font-bold text-slate-900 dark:text-white whitespace-nowrap flex-shrink-0">Total Amount</span>
+                  <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+                    <span className="text-2xl font-bold text-primary whitespace-nowrap">{formatCurrency(document.totalAmount || document.amount || 0, documentCurrency)}</span>
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 whitespace-nowrap flex-shrink-0">
                       {documentCurrency}
                     </span>
                   </div>
@@ -485,6 +498,11 @@ export default function SecureShare() {
                     {document.status === 'accepted' ? 'check_circle' : 'cancel'}
                   </span>
                   Quotation {document.status === 'accepted' ? 'Accepted' : 'Rejected'}
+                </div>
+              ) : document.status === 'acknowledged' ? (
+                <div className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 px-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-semibold">
+                  <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                  Invoice Acknowledged
                 </div>
               ) : (
                 <button 

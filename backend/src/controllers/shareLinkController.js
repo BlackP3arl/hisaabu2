@@ -10,6 +10,7 @@ import {
 import { getOrCreateSettings } from '../queries/settings.js';
 import { query } from '../config/database.js';
 import { successResponse, errorResponse, toCamelCase, toCamelCaseArray } from '../utils/response.js';
+import { generateQuotationPDFFromToken, generateInvoicePDFFromToken } from '../utils/pdfGenerator.js';
 
 /**
  * Generate share link
@@ -632,6 +633,14 @@ export const publicAcknowledge = async (req, res) => {
       [token]
     );
 
+    // Update invoice status to 'acknowledged' if it's an invoice
+    if (shareLink.document_type === 'invoice') {
+      await query(
+        'UPDATE invoices SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['acknowledged', shareLink.document_id]
+      );
+    }
+
     return successResponse(
       res,
       null,
@@ -641,6 +650,121 @@ export const publicAcknowledge = async (req, res) => {
   } catch (error) {
     console.error('Public acknowledge error:', error);
     throw error;
+  }
+};
+
+/**
+ * Public PDF endpoint for quotations (no authentication)
+ * GET /api/v1/public/share/:token/pdf
+ */
+export const publicPDF = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Get share link
+    const shareLink = await getShareLinkByToken(token);
+
+    if (!shareLink) {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Share link not found',
+        null,
+        404
+      );
+    }
+
+    // Check if link is active
+    if (!shareLink.is_active) {
+      return errorResponse(
+        res,
+        'GONE',
+        'Share link is inactive',
+        null,
+        410
+      );
+    }
+
+    // Check if expired
+    if (shareLink.expires_at) {
+      const expiresAt = new Date(shareLink.expires_at);
+      expiresAt.setHours(23, 59, 59, 999);
+      if (new Date() > expiresAt) {
+        return errorResponse(
+          res,
+          'GONE',
+          'Share link has expired',
+          null,
+          410
+        );
+      }
+    }
+
+    // Generate PDF based on document type
+    let doc;
+    let filename;
+    
+    if (shareLink.document_type === 'quotation') {
+      doc = await generateQuotationPDFFromToken(token);
+      filename = `quotation-${shareLink.document_id}.pdf`;
+    } else if (shareLink.document_type === 'invoice') {
+      doc = await generateInvoicePDFFromToken(token);
+      filename = `invoice-${shareLink.document_id}.pdf`;
+    } else {
+      return errorResponse(
+        res,
+        'VALIDATION_ERROR',
+        'Invalid document type',
+        null,
+        422
+      );
+    }
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Pipe PDF to response
+    doc.pipe(res);
+    doc.end();
+  } catch (error) {
+    console.error('Public PDF error:', error);
+    console.error('Error stack:', error.stack);
+    if (error.message === 'QUOTATION_NOT_FOUND' || error.message === 'INVOICE_NOT_FOUND') {
+      return errorResponse(
+        res,
+        'NOT_FOUND',
+        'Document not found',
+        null,
+        404
+      );
+    }
+    if (error.message === 'SHARE_LINK_INACTIVE') {
+      return errorResponse(
+        res,
+        'GONE',
+        'Share link is inactive',
+        null,
+        410
+      );
+    }
+    if (error.message === 'SHARE_LINK_EXPIRED') {
+      return errorResponse(
+        res,
+        'GONE',
+        'Share link has expired',
+        null,
+        410
+      );
+    }
+    // Return a proper error response instead of throwing
+    return errorResponse(
+      res,
+      'INTERNAL_ERROR',
+      error.message || 'Failed to generate PDF',
+      null,
+      500
+    );
   }
 };
 

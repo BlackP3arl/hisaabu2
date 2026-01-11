@@ -12,6 +12,9 @@ import InvoicesList from './pages/InvoicesList'
 import InvoiceForm from './pages/InvoiceForm'
 import InvoiceDetail from './pages/InvoiceDetail'
 import QuotationDetail from './pages/QuotationDetail'
+import RecurringInvoicesList from './pages/RecurringInvoicesList'
+import RecurringInvoiceForm from './pages/RecurringInvoiceForm'
+import RecurringInvoiceDetail from './pages/RecurringInvoiceDetail'
 import ItemsList from './pages/ItemsList'
 import ItemForm from './pages/ItemForm'
 import CategoriesList from './pages/CategoriesList'
@@ -20,6 +23,11 @@ import UOMsList from './pages/UOMsList'
 import UOMForm from './pages/UOMForm'
 import Settings from './pages/Settings'
 import SecureShare from './pages/SecureShare'
+import Reports from './pages/Reports'
+import GSTReports from './pages/GSTReports'
+import InputTaxStatement from './pages/InputTaxStatement'
+import OutputTaxStatement from './pages/OutputTaxStatement'
+import InputTaxCapitalExpenditure from './pages/InputTaxCapitalExpenditure'
 import { DataProvider } from './context/DataContext'
 import { isAuthenticated as checkAuth, clearAuth } from './utils/auth'
 
@@ -85,6 +93,10 @@ function App() {
               <Route path="/invoices/new" element={<InvoiceForm />} />
               <Route path="/invoices/:id" element={<InvoiceForm />} />
               <Route path="/invoices/:id/view" element={<InvoiceDetail />} />
+              <Route path="/recurring-invoices" element={<RecurringInvoicesList />} />
+              <Route path="/recurring-invoices/new" element={<RecurringInvoiceForm />} />
+              <Route path="/recurring-invoices/:id" element={<RecurringInvoiceForm />} />
+              <Route path="/recurring-invoices/:id/view" element={<RecurringInvoiceDetail />} />
               <Route path="/items" element={<ItemsList />} />
               <Route path="/items/new" element={<ItemForm />} />
               <Route path="/items/:id" element={<ItemForm />} />
@@ -94,6 +106,11 @@ function App() {
               <Route path="/uoms" element={<UOMsList />} />
               <Route path="/uoms/new" element={<UOMForm />} />
               <Route path="/uoms/:id" element={<UOMForm />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/reports/gst" element={<GSTReports />} />
+              <Route path="/reports/input-tax" element={<InputTaxStatement />} />
+              <Route path="/reports/output-tax" element={<OutputTaxStatement />} />
+              <Route path="/reports/input-tax-capital" element={<InputTaxCapitalExpenditure />} />
               <Route path="/settings" element={<Settings />} />
             </>
           ) : (

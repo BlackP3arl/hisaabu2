@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import Layout from '../components/Layout'
 import { formatCurrency } from '../utils/currency'
 
 export default function InvoicesList() {
   const { invoices, loading, pagination, fetchInvoices, deleteInvoice, companySettings, fetchCompanySettings } = useData()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState(() => {
+    // Initialize filter from URL search params
+    const statusParam = searchParams.get('status')
+    return statusParam && ['draft', 'sent', 'paid', 'partial', 'overdue'].includes(statusParam) ? statusParam : 'all'
+  })
   const [page, setPage] = useState(1)
 
   // Debounce search
@@ -19,6 +24,15 @@ export default function InvoicesList() {
     }, 300)
     return () => clearTimeout(timer)
   }, [search])
+
+  // Update URL when filter changes
+  useEffect(() => {
+    if (filter !== 'all') {
+      setSearchParams({ status: filter })
+    } else {
+      setSearchParams({})
+    }
+  }, [filter, setSearchParams])
 
   // Fetch invoices when filters change
   useEffect(() => {
@@ -62,6 +76,7 @@ export default function InvoicesList() {
       draft: 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300',
       partial: 'bg-amber-50 dark:bg-amber-900/30 border-amber-100 dark:border-amber-800 text-amber-600 dark:text-amber-400',
       sent: 'bg-sky-50 dark:bg-sky-900/30 border-sky-100 dark:border-sky-800 text-sky-600 dark:text-sky-400',
+      acknowledged: 'bg-blue-50 dark:bg-blue-900/30 border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-400',
     }
     return badges[status] || badges.draft
   }
@@ -73,12 +88,15 @@ export default function InvoicesList() {
       draft: 'bg-slate-400',
       partial: 'bg-amber-500',
       sent: 'bg-sky-500',
+      acknowledged: 'bg-blue-500',
     }
     return colors[status] || 'bg-slate-400'
   }
 
   const getStatusText = (status) => {
-    return status === 'partial' ? 'Partial' : status.toUpperCase()
+    if (status === 'partial') return 'Partial'
+    if (status === 'acknowledged') return 'Acknowledged'
+    return status.toUpperCase()
   }
 
 
@@ -130,7 +148,7 @@ export default function InvoicesList() {
           </div>
 
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            {['all', 'draft', 'sent', 'paid', 'partial', 'overdue'].map((f) => (
+            {['all', 'draft', 'sent', 'acknowledged', 'paid', 'partial', 'overdue'].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}

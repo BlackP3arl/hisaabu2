@@ -34,3 +34,4 @@ CREATE TRIGGER trigger_update_category_item_count
     EXECUTE FUNCTION update_category_item_count();
 
 
+

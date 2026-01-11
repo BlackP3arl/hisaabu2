@@ -407,7 +407,7 @@ export const update = async (req, res) => {
     }
 
     if (status !== undefined) {
-      const validStatuses = ['draft', 'sent', 'paid', 'partial', 'overdue'];
+      const validStatuses = ['draft', 'sent', 'paid', 'partial', 'overdue', 'acknowledged'];
       if (!validStatuses.includes(status)) {
         return errorResponse(
           res,

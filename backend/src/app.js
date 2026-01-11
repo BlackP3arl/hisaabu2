@@ -1,30 +1,41 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
-// Load environment variables
-dotenv.config();
+// Import routes
+import authRoutes from './routes/auth.js';
+import clientsRoutes from './routes/clients.js';
+import categoriesRoutes from './routes/categories.js';
+import itemsRoutes from './routes/items.js';
+import quotationsRoutes from './routes/quotations.js';
+import invoicesRoutes from './routes/invoices.js';
+import recurringInvoicesRoutes from './routes/recurringInvoices.js';
+import paymentsRoutes from './routes/payments.js';
+import settingsRoutes from './routes/settings.js';
+import shareLinksRoutes from './routes/shareLinks.js';
+import dashboardRoutes from './routes/dashboard.js';
+import taxesRoutes from './routes/taxes.js';
+import uomsRoutes from './routes/uoms.js';
+import publicRoutes from './routes/public.js';
 
+// Create Express app
 const app = express();
 
 // CORS configuration
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
-  optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions));
 
 // Body parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware (development only)
+// Request logging (development only)
 if (process.env.NODE_ENV === 'development') {
   app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -34,57 +45,40 @@ if (process.env.NODE_ENV === 'development') {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({
+  res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
+    environment: process.env.NODE_ENV || 'development',
   });
 });
 
 // API routes
-import authRoutes from './routes/auth.js';
-import clientRoutes from './routes/clients.js';
-import categoryRoutes from './routes/categories.js';
-import itemRoutes from './routes/items.js';
-import uomRoutes from './routes/uoms.js';
-import quotationRoutes from './routes/quotations.js';
-import invoiceRoutes from './routes/invoices.js';
-import paymentRoutes from './routes/payments.js';
-import dashboardRoutes from './routes/dashboard.js';
-import settingsRoutes from './routes/settings.js';
-import taxRoutes from './routes/taxes.js';
-import shareLinkRoutes from './routes/shareLinks.js';
-import publicRoutes from './routes/public.js';
-import { generateQuotationPDFController, generateInvoicePDFController } from './controllers/pdfController.js';
-import { authenticate } from './middleware/auth.js';
-import { testEmail } from './controllers/emailController.js';
+const API_VERSION = '/api/v1';
 
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/clients', clientRoutes);
-app.use('/api/v1/categories', categoryRoutes);
-app.use('/api/v1/items', itemRoutes);
-app.use('/api/v1/uoms', uomRoutes);
-app.use('/api/v1/quotations', quotationRoutes);
-app.use('/api/v1/invoices', invoiceRoutes);
-app.use('/api/v1/invoices', paymentRoutes); // Payments are nested under invoices
-app.use('/api/v1/dashboard', dashboardRoutes);
-app.use('/api/v1/settings', settingsRoutes);
-app.use('/api/v1/taxes', taxRoutes);
-app.use('/api/v1/share-links', shareLinkRoutes);
-app.use('/api/v1/public', publicRoutes);
+// Public routes (no authentication)
+app.use(`${API_VERSION}/public`, publicRoutes);
 
-// Test email route (for debugging - requires authentication)
-app.post('/api/v1/test-email', authenticate, testEmail);
+// Authentication routes
+app.use(`${API_VERSION}/auth`, authRoutes);
 
-// PDF generation routes
-app.get('/api/v1/quotations/:id/pdf', authenticate, generateQuotationPDFController);
-app.get('/api/v1/invoices/:id/pdf', authenticate, generateInvoicePDFController);
+// Protected routes (require authentication)
+app.use(`${API_VERSION}/clients`, clientsRoutes);
+app.use(`${API_VERSION}/categories`, categoriesRoutes);
+app.use(`${API_VERSION}/items`, itemsRoutes);
+app.use(`${API_VERSION}/quotations`, quotationsRoutes);
+app.use(`${API_VERSION}/invoices`, invoicesRoutes);
+app.use(`${API_VERSION}/recurring-invoices`, recurringInvoicesRoutes);
+app.use(`${API_VERSION}/payments`, paymentsRoutes);
+app.use(`${API_VERSION}/settings`, settingsRoutes);
+app.use(`${API_VERSION}/share-links`, shareLinksRoutes);
+app.use(`${API_VERSION}/dashboard`, dashboardRoutes);
+app.use(`${API_VERSION}/taxes`, taxesRoutes);
+app.use(`${API_VERSION}/uoms`, uomsRoutes);
 
-// 404 handler
+// 404 handler (must be after all routes)
 app.use(notFoundHandler);
 
 // Error handler (must be last)
 app.use(errorHandler);
 
 export default app;
-

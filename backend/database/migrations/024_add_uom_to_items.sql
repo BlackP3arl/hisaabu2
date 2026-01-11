@@ -20,3 +20,4 @@ CREATE INDEX IF NOT EXISTS idx_items_uom_id ON items(uom_id);
 -- Add comment
 COMMENT ON COLUMN items.uom_id IS 'Unit of measure for this item (defaults to Pieces/PC)';
 
+
